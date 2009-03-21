@@ -1,33 +1,9 @@
-''''''''''''''''''''''''''''''
-''   PockeTerm		    ''
-''   Author: Vince Briel    ''
-''   2009 Briel Computers   ''
-''			    ''
-''''''''''''''''''''''''''''''
-'
-'' Big thanks to Jeff Ledger on the VT100 code
-'
-'
-'  Start of RAW code for testing  December 19,2008
-'  Jan 10th added INVERSE mode
-'  Jan 13 revised code for .04 working duel serial ports
-'  Jan 15 fixed so xmodem could work by allowing data 0 up to be sent not 1 and up
-'  Jan 21 added PC port on/off 7 bit ascii on/off
-'  V.71 cls to cursor fixed
-'  V.72 clsfrom cursor down working
-'  V.73 fixed EEPROM read/write issue and no serial port functioning
-'  V.74 ESC D and ESC L commands added, only 2 commands remaining
-'  V.80 VT100 majority codes finished
-'  V.81 Fixed cursor home to 0,0 and CLS to leave cursor where it is at after CLS
-'  V.82 Made Function control keys CTRL-Fx to avoid accidental changes
-'  V.83 Added CTRL-G beep sound effect
-'  V.84 Added ESC[c and ESC[0c terminal ID command
-'  V.85 Fixed scroll issue if beyond 36th line
-'  V.86 Fixed terminal ID, now working added 300 & 115200 Baud rates
-'  V.90 Added CTRL-F6 option for Carriage return to add line feed YES or NO
-'  V.901 Fixed ESC[A-D so they work if no value is added
-'  V.902 Modified so CR just does a Carriage Return and LF just does a linefeed
-'  V.903 More adjustments to CR adjusted command
+'' ajvTerm.spin
+''	VT-100 emulation
+''
+'' Based on code from Vince Briel
+'' VT-100 code from Jeff Ledger
+''
 ''		Current VT-100 Code list
 ''
 ''	ESC[m			Turn off character attributes
@@ -44,8 +20,8 @@
 ''	ESC[f			Move cursor to upper left corner
 ''	ESC[;f			Move cursor to upper left corner
 ''	ESC[line;columnf	Move cursor to sceen location v,h
-''	ESCD			Move/scroll window up one line 
-''	ESC[D			Move/scroll window up one line 
+''	ESCD			Move/scroll window up one line
+''	ESC[D			Move/scroll window up one line
 ''	ESCL			Move/scroll window up one line (undocumented)
 ''	ESC[L			Move/scroll window up one line (undocumented)
 ''	ESCM			Move/scroll window down one line
@@ -57,8 +33,8 @@
 ''	ESC[0J			Clear screen from cursor down
 ''	ESC[1J			Clear screen from cursor up
 ''	ESC[2J			Clear entire screen
-''	ESC[0c			Terminal ID responds with [?1;0c for VT-100 no options
-''	ESC[c			Terminal ID responds with [?1;0c for VT-100 no options
+''	ESC[0c			Terminal ID responds with [?1;0c
+''	ESC[c			 (ditto)
 ''
 '' List of ignored codes
 ''
@@ -67,78 +43,66 @@
 ''	ESC=			Alternate keypad mode
 ''	ESC<			Enter/Exit ANSI mode
 ''	ESC>			Exit Alternate keypad mode
-''	Esc5n			Device status report				DSR  
-''	Esc0n			Response: terminal is OK			DSR  
-''	Esc3n			Response: terminal is not OK			DSR  
-''	Esc6n			Get cursor position				DSR  
-''	EscLine;ColumnR		Response: cursor is at v,h			CPR
-''	Esc#8			Screen alignment display			DECALN	
-''	Esc[2;1y		Confidence power up test			DECTST	
-''	Esc[2;2y		Confidence loopback test			DECTST	
-''	Esc[2;9y		Repeat power up test				DECTST	
-''	Esc[2;10y		Repeat loopback test				DECTST	
-''	Esc[0q			Turn off all four leds				DECLL0	
-''	Esc[1q			Turn on LED #1					DECLL1	
-''	Esc[2q			Turn on LED #2					DECLL2	
-''	Esc[3q			Turn on LED #3					DECLL3	
-''	Esc[4q			Turn on LED #4					DECLL4	
-  
-
-
-
-'  Please report any bugs to vbriel@yahoo.com
+''	Esc5n			Device status report
+''	Esc0n			Response: terminal is OK
+''	Esc3n			Response: terminal is not OK
+''	Esc6n			Get cursor position
+''	EscLine;ColumnR		Response: cursor is at v,h
+''	Esc#8			Screen alignment display
+''	Esc[2;1y		Confidence power up test
+''	Esc[2;2y		Confidence loopback test
+''	Esc[2;9y		Repeat power up test
+''	Esc[2;10y		Repeat loopback test
+''	Esc[0q			Turn off all four leds
+''	Esc[1q			Turn on LED #1
+''	Esc[2q			Turn on LED #2
+''	Esc[3q			Turn on LED #3
+''	Esc[4q			Turn on LED #4
 
 
 CON
 
-  _clkmode = xtal1 + pll16x
-  _xinfreq = 5_000_000
-					 
-  Cursor     = 95
-  VideoCls   = 0
-  NUM	     = %100
-  CAPS	     = %010
-  SCROLL     = %001
-  RepeatRate = 40
-  video      = 16
-  backspace  = $C8
-'  semi       = 59
-'  rowsnow    = 36
-  
-'  VT-100 values
+    _clkmode = xtal1 + pll16x
+    _xinfreq = 5_000_000
 
-'' Terminal Colors
-   TURQUOISE	     = $29
-   BLUE		     = $27
-   BABYBLUE	     = $95
-   RED		     = $C1
-   GREEN	     = $99
-   GOLDBROWN	     = $A2
-   AMBERDARK	     = $E2
-   LAVENDER	     = $A5
-   WHITE	     = $FF
-   HOTPINK	     = $C9
-   GOLD		     = $D9
-   PINK		     = $C5
+    '' Parameters for keyboard driver: disable num lock, set repeat rate
+    NUM = %100
+    RepeatRate = %01_01000
 
- 
-   r1 = 31	    'PC serial port receive line
-   t1 = 30	    'PC serial port transmit line
-   r2 = 25	    'Host device receive line
-   t2 = 24	    'Host device transmit line
+    '' Video driver: set video output pin
+    video = 16
 
-   EEPROMAddr	     = %1010_0000
-   EEPROM_Base	     = $7FE0
-   i2cSCL	     = 28
+    '' Terminal Colors
+    TURQUOISE = $29
+    BLUE = $27
+    BABYBLUE = $95
+    RED = $C1
+    GREEN = $99
+    GOLDBROWN = $A2
+    AMBERDARK = $E2
+    LAVENDER = $A5
+    WHITE = $FF
+    HOTPINK = $C9
+    GOLD = $D9
+    PINK = $C5
 
-'' Sound Variables
 
-   right = 10
-   left  = 11
-   
+    '' RS-232 driver values: PC(1) and Host(2) rx and tx lines
+    r1 = 31
+    t1 = 30
+    r2 = 25
+    t2 = 24
+
+    '' I2C access to EEPROM (used for saving config)
+    EEPROMAddr = %1010_0000
+    EEPROM_Base = $7FE0
+    i2cSCL = 28
+    
+    XXX TBD move EEPROM to its own module
+
 OBJ
 
-  text: "VGA_1024"								' VGA Terminal Driver  
+  text: "VGA_1024"								' VGA Terminal Driver
   kb:	"keyboard"								' Keyboard driver
   ser:	"FullDuplexSerial256"							' Full Duplex Serial Controller
   ser2: "FullDuplexSerial2562"							' 2nd Full Duplex Serial Controller
@@ -163,15 +127,11 @@ VAR
   word eepromLocation
   Byte CR
   Byte LNM
-PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6,byte7,loop,var1,col,row,temp2,tempbaud,source 
+PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6,byte7,loop,var1,col,row,temp2,tempbaud,source
 
 
 
 
-  CTRA:= %00110 << 26 + 0<<9 + right
-  CTRB:= %00110 << 26 + 0<<9 + left
-  DIRA[right]~~			'Set Right Pin to output
-  DIRA[left]~~			'Set Left Pin to output
   source:=@PIANO
   LNM := 0			'CR only sent
   i2c.Initialize(i2cSCL)
@@ -181,7 +141,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
   pcport := 1 '1=pc port off, 2=on
   termcolor:=5
   curset := 5
-  BR[0]:=300 
+  BR[0]:=300
   BR[1]:=1200
   BR[2]:=2400
   BR[3]:=4800
@@ -208,9 +168,9 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
   if temp2 == 55								'we have previously recorded settings, so restore them
      eepromLocation +=4								'increase to next location
      tempbaud := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)		'read Baud as temp
-     eepromLocation +=4								
+     eepromLocation +=4
      termcolor := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)		'read terminal color
-     eepromLocation +=4								
+     eepromLocation +=4
      pcport := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read pcport on/off setting
      eepromLocation +=4
      ascii := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read force 7bit setting
@@ -218,26 +178,26 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
      curset := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read cursor type
      eepromLocation +=4
      CR := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read CR W/LF ON/OFF
-     waitcnt(clkfreq/200 + cnt)     
+     waitcnt(clkfreq/200 + cnt)
 
 
 
-  
-  Baud:=BR[tempbaud]												
+
+  Baud:=BR[tempbaud]
   text.start(video)
-  text.color(CLR[termcolor])													    
+  text.color(CLR[termcolor])
   kb.startx(26, 27, NUM, RepeatRate)						'Start Keyboard Driver
   ser.start(r1,t1,0,baud)							'Start Port2 to PC
-  ser2.start(r2,t2,0,baud)							'Start Port1 to main device  
+  ser2.start(r2,t2,0,baud)							'Start Port1 to main device
   Baud:=tempbaud
   text.cls(Baud,termcolor,pcport,ascii,CR)
 '  text.clsupdate(Baud,termcolor,pcport,ascii,CR)
   text.inv(0)
   text.cursorset(curset)
-  vt100:=0 
+  vt100:=0
   repeat
     key := kb.key								'Go get keystroke, then return here
-    
+
     if key == 194 'up arrow
        ser2.str(string(27,"[A"))
     if key == 195 'down arrow
@@ -246,8 +206,8 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
     if key == 193 'right arrow
        ser2.str(string(27,"[C"))
     if key == 192 'left arrow
-       ser2.str(string(27,"[D"))    
-	   
+       ser2.str(string(27,"[D"))
+
     if key >576
        if key <603
 	  key:=key-576
@@ -259,7 +219,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
        key:=08
     if key == 203								'Is it upper code for ESC key?
        key:= 27									'Yes, convert to standard ASCII value
-    if key == 720		
+    if key == 720
       Baud++									'is ESC then + then increase baud or roll over
       if Baud > 8
 	 Baud:=0
@@ -272,27 +232,27 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
       Baud:=temp
       text.clsupdate(Baud,termcolor,pcport,ascii,CR)
       EEPROM
-    if key == 721		
+    if key == 721
        if ++termcolor > 11
 	  termcolor:=1
        text.color(CLR[termcolor])
        'text.clsupdate(Baud,termcolor,pcport,ascii)
        EEPROM
-    if key == 722		
+    if key == 722
        if pcport == 1
 	  pcport := 0
        else
 	  pcport := 1
        text.clsupdate(Baud,termcolor,pcport,ascii,CR)
        EEPROM
-    if key == 723		
+    if key == 723
        if ascii == 0
 	  ascii := 1
        else
 	  ascii :=0
        text.clsupdate(Baud,termcolor,pcport,ascii,CR)
        EEPROM
-    if key == 724		
+    if key == 724
        curset++
        if curset > 7
 	  curset := 1
@@ -305,22 +265,22 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	  CR := 1
        text.clsupdate(Baud,termcolor,pcport,ascii,CR)
        EEPROM
-    if key <128 and key > 0							'Is the keystroke PocketTerm compatible?    was 96 
+    if key <128 and key > 0							'Is the keystroke PocketTerm compatible?    was 96
        ser2.tx(key)								'Yes, so send it
        if key == 13
        'this probably needs to be if CR == 1
 	 if LNM == 1 or CR == 1'send both CR and LF?
 	   ser2.tx(10)		'yes, set by LNM ESC command, send LF also
-       
 
-       
+
+
 '' END keyboard console routine
 
 
-											   
+
 'LOOK FOR SERIAL INPUT HERE
-    if pcport == 0								'Is PC turned on at console for checking? 
-       remote2 := ser.rxcheck							'Yes, look at the port for data			 
+    if pcport == 0								'Is PC turned on at console for checking?
+       remote2 := ser.rxcheck							'Yes, look at the port for data
        if (remote2 > -1)							'remote = -1 if no data
 	  ser2.tx(remote2)							'Send the data out to the host device
 	  waitcnt(clkfreq/200 + cnt)						'Added to attempt eliminate dropped characters
@@ -329,7 +289,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
        if ascii == 1 'yes force 7 bit ascii
 	  if (remote > 127)
 	     remote := remote -128
-       if pcport == 0	    
+       if pcport == 0
 	  ser.tx(remote)
 'Start of VT100 code
       if remote == 27											'vt100 ESC code is being sent
@@ -356,7 +316,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	 text.scrollM
 	 vt100 := 0
       if remote == 68 and vt100 == 1 'AKA ESC D
-	 if byte2 <> 91 and byte3 <> 91 and byte4 <> 91  'not esc[D   
+	 if byte2 <> 91 and byte3 <> 91 and byte4 <> 91  'not esc[D
 	    'text.scrollD
 	    vt100 := 0
       if remote == 76 and vt100 == 1 'AKA ESC L
@@ -364,7 +324,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	 vt100:=2											'start recording code
       if remote == 62 and vt100 == 1 or remote == 60 and vt100 == 1					'look for < & >
 	 vt100:=0 ' not sure why this is coming up, can't find in spec.
-      if vt100==2 ''Check checking for VT100 emulation codes  
+      if vt100==2 ''Check checking for VT100 emulation codes
 	 if remote > 10
 	   byte7:=byte6
 	   byte6:=byte5											' My VTCode Mini Buffer
@@ -373,7 +333,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	   byte3:=byte2											'Record the last 7 bytes
 	   byte2:=byte1
 	   byte1:=remote
-	 
+
 	 if remote == 109										'look for lowercase m
 	    if byte2 == 91										'if [m turn off to normal set
 	       text.inv(0)
@@ -387,12 +347,12 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	    if byte2  == 48 and vt100 > 0									      '0 is back to normal
 	       text.inv(0)
 	       vt100:=0
-	    
+
 
 	 if remote == 104										'look for lowercase h set CR/LF mode
 	    if byte2 == 48 'if character before h is 0 maybe command is 20h
 	       if byte3 == 50 'if byte3 then it is for sure 20h
-		 LNM := 0	 
+		 LNM := 0
 	    vt100:=0
 
 	 if remote == 61										'lool for =
@@ -404,18 +364,18 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	 if remote == 108										'look for lowercase l
 	    if byte2 == 48 'if character before l is 0 maybe command is 20l
 	       if byte3 == 50 'if byte3 then it is for sure 20l
-		 LNM := 1  '0 means CR/LF in CR mode only 
+		 LNM := 1  '0 means CR/LF in CR mode only
 	    vt100:=0
 
 	 if remote == 62  'look for >
 	    vt100:=0
 	 if remote == 77										'ESC M look for obscure scroll window code
-	    text.scrollM 
+	    text.scrollM
 	    vt100:=0
 	 'if remote == 68 or remote == 76 ' look for ESC D  or ESC L
 	 '   text.scrollD
 	 '   vt100:=0
-	 if remote == 72 or remote == 102								' HOME CURSOR (uppercase H or lowercase f) 
+	 if remote == 72 or remote == 102								' HOME CURSOR (uppercase H or lowercase f)
 	    if byte2==91 or byte2==59									'look for [H or [;f maybe [xx;H
 	       if byte5 == 91 'then esc[nn;H
 		  byte4:=byte4-48
@@ -433,14 +393,14 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 		  vt100:=0
 	    '' Check for X & Y with [H or ;f   -   Esc[Line;ColumnH
 
-	    else											'here remote is either H or f	    
+	    else											'here remote is either H or f
 	      if byte4 == 59										'is col is greater than 9     ; ALWAYS if byte4=59
 		byte3:=byte3-48										'Grab 10's
 		byte2:=byte2-48										'Grab 1's
 		byte3:=byte3*10										'Multiply 10's
 		byte3:=byte3+byte2									'Add 1's
 		col:=byte3										'Set cols
-				   
+
 		if byte7 == 91										'Assume row number is greater than 9  if ; at byte 4 and [ at byte 7 greater than 9
 		   byte6:=byte6-48									'Grab 10's
 		   byte5:=byte5-48									'Grab 1's
@@ -504,15 +464,15 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 		 row :=35
 	      if col > 79
 		 col := 79
-	      
+
 	      text.cursloc(col,row)
 	    vt100:=0
-	 if remote == 114	'ESCr 
-	    
+	 if remote == 114	'ESCr
+
 	       text.out(126)
 	 if remote == 74    '' CLEAR SCREEN
 	    if byte2==91    '' look for [J  '' clear screen from cursor to 25
-	       text.clsfromcursordown 
+	       text.clsfromcursordown
 	    'vt100:=0
 	    if byte2==50    '' look for [2J '' clear screen
 	       text.cls(Baud,termcolor,pcport,ascii,CR)
@@ -553,7 +513,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	      byte2:=byte2-48
 	      var1:=byte2
 	    if byte2 == 91 ''ESC[A no numbers move down one
-	    
+
 	      var1 := 1
 	    loop:=0
 	    repeat until loop == var1
@@ -573,7 +533,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	      byte2:=byte2-48
 	      var1:=byte2
 	    if byte2 == 91 ''ESC[C no numbers move RIGHT one
-	    
+
 	      var1 := 1
 	    loop:=0
 	    repeat until loop == var1
@@ -592,23 +552,23 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	      byte2:=byte2-48
 	      var1:=byte2
 	    if byte2 == 91 ''ESC[D no numbers move LEFT one
-	    
+
 	      var1 := 1
 	    loop:=0
 	    repeat until loop == var1
 	       text.out($C0)   'was $C0
 	       loop++
-	    vt100:=0  
-	    
+	    vt100:=0
+
 	 if remote == 75   '' Clear line  Esc[K
 	   if byte2 == 91 '' Look for [
 	     text.clearlinefromcursor
-	     
+
 	     vt100:=0
 	   if byte2  == 48 ' look for [0K
 	      if byte3 == 91
 		 text.clearlinefromcursor
-		 
+
 		 vt100:=0
 	   if byte2 == 49  ' look for [1K
 	      if byte3 == 91
@@ -617,8 +577,8 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	   if byte2 == 50 ' look for [2K
 	      if byte3 == 91
 		 text.clearline
-		 
-		 vt100 := 0  
+
+		 vt100 := 0
 
 	 if remote == 99 ' look for [0c or [c		ESC [ ? 1 ; Ps c Ps=0 for VT-100 no options
 	   if byte2 == 91 '' Look for [
@@ -629,17 +589,13 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 		     ser2.str(string(27,"[?1;0c"))
 		     vt100 := 0
 	 remote:=0 '' hide all codes from the VGA output.
-      
+
       if record == 13 and remote == 13	''LF CHECK
 	 if CR == 1
 	   text.out(remote)
 	 remote :=0
       if remote == 08
 	 remote := $C0	  'now backspace just moves cursor, doesn't clear character
-      if remote == 7
-	 sound(source, 4500)
-     ' if remote == 10
-     '	  text.out($0A)     
       if remote > 8
 	 text.out(remote)
       record:=remote ''record last byte
@@ -647,7 +603,7 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 
 PUB EEPROM | eepromData
 	eepromLocation := EEPROM_Base
-	
+
 	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, 55)
 	eepromLocation +=4
 	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, Baud)
@@ -662,27 +618,3 @@ PUB EEPROM | eepromData
 	eepromLocation +=4
 	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, CR)
 	waitcnt(clkfreq/200 + cnt)
-	
-
-
-PUB Sound (pWav,speed):bOK|n,i,nextCnt,rate,dcnt,wait
-
-  pWav+=44
-
-  i:=0
-  NextCnt:=cnt	'+15000
-
-  'Play loop
-  repeat i from 0 to 1200
-    NextCnt+=speed
-    waitcnt(NextCnt)
-    FRQA:=(byte[pWav+i])<<24
-    FRQB:=FRQA
-
-PUB forever  | i
-  repeat i from 0 to 1000
-     waitcnt(i*32767)
-DAT
-
-PIANO
-File "piano.wav"      '   <---	put your 8-bit PCM mono 8000 sample/second WAV

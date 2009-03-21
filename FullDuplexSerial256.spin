@@ -1,6 +1,6 @@
 ''************************************
 ''*  Full-Duplex Serial Driver v1.1  *
-''*  (C) 2006 Parallax, Inc.         *
+''*  (C) 2006 Parallax, Inc.	     *
 ''************************************
 ''
 ''
@@ -31,25 +31,25 @@
 ''
 VAR
 
-  long  cog                     'cog flag/id
+  long	cog			'cog flag/id
 
-  long  rx_head                 '9 contiguous longs
-  long  rx_tail
-  long  tx_head
-  long  tx_tail
-  long  rx_pin
-  long  tx_pin
-  long  rxtx_mode
-  long  bit_ticks
-  long  buffer_ptr
+  long	rx_head			'9 contiguous longs
+  long	rx_tail
+  long	tx_head
+  long	tx_tail
+  long	rx_pin
+  long	tx_pin
+  long	rxtx_mode
+  long	bit_ticks
+  long	buffer_ptr
 
 
   ' transmit and receive buffers
   ' buffers need to be a power of 2; ie: 16 32 64 128 256 512
   ' Note: looks like the maximum size of the buffer can only be 512 bytes.
 
-  byte  rx_buffer[256]                                     ' <----------- Change Buffer Size Here
-  byte  tx_buffer[256]                                     ' <----------- Change Buffer Size Here
+  byte	rx_buffer[256]					   ' <----------- Change Buffer Size Here
+  byte	tx_buffer[256]					   ' <----------- Change Buffer Size Here
 
 
 PUB start(rxpin, txpin, mode, baudrate) : okay
@@ -62,24 +62,24 @@ PUB start(rxpin, txpin, mode, baudrate) : okay
 '' mode bit 2 = open-drain/source tx
 '' mode bit 3 = ignore tx echo on rx
 
-  stop                                        ' stop stops any existing running serial driver if say you reinitialized
-                                              ' your program without previously stopping it.
+  stop					      ' stop stops any existing running serial driver if say you reinitialized
+					      ' your program without previously stopping it.
 
-  longfill(@rx_head, 0, 4)                    ' The longfill initializes the first 4 longs to zero
-                                              ' (rx_head through tx_tail)
+  longfill(@rx_head, 0, 4)		      ' The longfill initializes the first 4 longs to zero
+					      ' (rx_head through tx_tail)
 
-  longmove(@rx_pin, @rxpin, 3)                ' The longmove copies the 4 parameters to start to the next 4 longs in
-                                              ' the table (rx_pin through bit_ticks)
+  longmove(@rx_pin, @rxpin, 3)		      ' The longmove copies the 4 parameters to start to the next 4 longs in
+					      ' the table (rx_pin through bit_ticks)
 
-  bit_ticks := clkfreq / baudrate             ' The assignment to bit_ticks computes the number of clock ticks for
-                                              ' the Baud requested.
+  bit_ticks := clkfreq / baudrate	      ' The assignment to bit_ticks computes the number of clock ticks for
+					      ' the Baud requested.
 
-  buffer_ptr := @rx_buffer                    ' The assignment to buffer_ptr passes the address
-                                              ' of the receive buffer (and the transmit buffer XX bytes further).
+  buffer_ptr := @rx_buffer		      ' The assignment to buffer_ptr passes the address
+					      ' of the receive buffer (and the transmit buffer XX bytes further).
 
   okay := cog := cognew(@entry, @rx_head) + 1 ' The cognew starts the assembly driver and passes to it the starting
-                                              ' address of this whole table which it uses to refer to the various
-                                              ' items in the table (rx_head through buffer_ptr).
+					      ' address of this whole table which it uses to refer to the various
+					      ' items in the table (rx_head through buffer_ptr).
 
 
 PUB stop
@@ -106,7 +106,7 @@ PUB rxcheck : rxbyte
   rxbyte--
   if rx_tail <> rx_head
     rxbyte := rx_buffer[rx_tail]
-    rx_tail := (rx_tail + 1) & $FF                          ' <----------- Change Buffer Size Here
+    rx_tail := (rx_tail + 1) & $FF			    ' <----------- Change Buffer Size Here
 
 
 PUB rxtime(ms) : rxbyte | t
@@ -130,9 +130,9 @@ PUB tx(txbyte)
 
 '' Send byte (may wait for room in buffer)
 
-  repeat until (tx_tail <> (tx_head + 1) & $FF)             ' <----------- Change Buffer Size Here
+  repeat until (tx_tail <> (tx_head + 1) & $FF)		    ' <----------- Change Buffer Size Here
   tx_buffer[tx_head] := txbyte
-  tx_head := (tx_head + 1) & $FF                            ' <----------- Change Buffer Size Here
+  tx_head := (tx_head + 1) & $FF			    ' <----------- Change Buffer Size Here
 
   if rxtx_mode & %1000
     rx
@@ -189,148 +189,148 @@ DAT
 '* Assembly language serial driver *
 '***********************************
 
-                        org
+			org
 '
 '
 ' Entry
 '
-entry                   mov     t1,par                'get structure address
-                        add     t1,#4 << 2            'skip past heads and tails
+entry			mov	t1,par		      'get structure address
+			add	t1,#4 << 2	      'skip past heads and tails
 
-                        rdlong  t2,t1                 'get rx_pin
-                        mov     rxmask,#1
-                        shl     rxmask,t2
+			rdlong	t2,t1		      'get rx_pin
+			mov	rxmask,#1
+			shl	rxmask,t2
 
-                        add     t1,#4                 'get tx_pin
-                        rdlong  t2,t1
-                        mov     txmask,#1
-                        shl     txmask,t2
+			add	t1,#4		      'get tx_pin
+			rdlong	t2,t1
+			mov	txmask,#1
+			shl	txmask,t2
 
-                        add     t1,#4                 'get rxtx_mode
-                        rdlong  rxtxmode,t1
+			add	t1,#4		      'get rxtx_mode
+			rdlong	rxtxmode,t1
 
-                        add     t1,#4                 'get bit_ticks
-                        rdlong  bitticks,t1
+			add	t1,#4		      'get bit_ticks
+			rdlong	bitticks,t1
 
-                        add     t1,#4                 'get buffer_ptr
-                        rdlong  rxbuff,t1
-                        mov     txbuff,rxbuff
-                        add     txbuff,#256                ' <----------- Change Buffer Size Here
+			add	t1,#4		      'get buffer_ptr
+			rdlong	rxbuff,t1
+			mov	txbuff,rxbuff
+			add	txbuff,#256		   ' <----------- Change Buffer Size Here
 
-                        test    rxtxmode,#%100  wz    'init tx pin according to mode
-                        test    rxtxmode,#%010  wc
-        if_z_ne_c       or      outa,txmask
-        if_z            or      dira,txmask
+			test	rxtxmode,#%100	wz    'init tx pin according to mode
+			test	rxtxmode,#%010	wc
+	if_z_ne_c	or	outa,txmask
+	if_z		or	dira,txmask
 
-                        mov     txcode,#transmit      'initialize ping-pong multitasking
+			mov	txcode,#transmit      'initialize ping-pong multitasking
 '
 '
 ' Receive
 '
-receive                 jmpret  rxcode,txcode         'run a chunk of transmit code, then return
+receive			jmpret	rxcode,txcode	      'run a chunk of transmit code, then return
 
-                        test    rxtxmode,#%001  wz    'wait for start bit on rx pin
-                        test    rxmask,ina      wc
-        if_z_eq_c       jmp     #receive
+			test	rxtxmode,#%001	wz    'wait for start bit on rx pin
+			test	rxmask,ina	wc
+	if_z_eq_c	jmp	#receive
 
-                        mov     rxbits,#9             'ready to receive byte
-                        mov     rxcnt,bitticks
-                        shr     rxcnt,#1
-                        add     rxcnt,cnt
+			mov	rxbits,#9	      'ready to receive byte
+			mov	rxcnt,bitticks
+			shr	rxcnt,#1
+			add	rxcnt,cnt
 
-:bit                    add     rxcnt,bitticks        'ready next bit period
+:bit			add	rxcnt,bitticks	      'ready next bit period
 
-:wait                   jmpret  rxcode,txcode         'run a chuck of transmit code, then return
+:wait			jmpret	rxcode,txcode	      'run a chuck of transmit code, then return
 
-                        mov     t1,rxcnt              'check if bit receive period done
-                        sub     t1,cnt
-                        cmps    t1,#0           wc
-        if_nc           jmp     #:wait
+			mov	t1,rxcnt	      'check if bit receive period done
+			sub	t1,cnt
+			cmps	t1,#0		wc
+	if_nc		jmp	#:wait
 
-                        test    rxmask,ina      wc    'receive bit on rx pin
-                        rcr     rxdata,#1
-                        djnz    rxbits,#:bit
+			test	rxmask,ina	wc    'receive bit on rx pin
+			rcr	rxdata,#1
+			djnz	rxbits,#:bit
 
-                        shr     rxdata,#32-9          'justify and trim received byte
-                        and     rxdata,#$FF
-                        test    rxtxmode,#%001  wz    'if rx inverted, invert byte
-        if_nz           xor     rxdata,#$FF
+			shr	rxdata,#32-9	      'justify and trim received byte
+			and	rxdata,#$FF
+			test	rxtxmode,#%001	wz    'if rx inverted, invert byte
+	if_nz		xor	rxdata,#$FF
 
-                        rdlong  t2,par                'save received byte and inc head
-                        add     t2,rxbuff
-                        wrbyte  rxdata,t2
-                        sub     t2,rxbuff
-                        add     t2,#1
-                        and     t2,#$FF                   ' <----------- Change Buffer Size Here
-                        wrlong  t2,par
+			rdlong	t2,par		      'save received byte and inc head
+			add	t2,rxbuff
+			wrbyte	rxdata,t2
+			sub	t2,rxbuff
+			add	t2,#1
+			and	t2,#$FF			  ' <----------- Change Buffer Size Here
+			wrlong	t2,par
 
-                        jmp     #receive              'byte done, receive next byte
+			jmp	#receive	      'byte done, receive next byte
 '
 '
 ' Transmit
 '
-transmit                jmpret  txcode,rxcode         'run a chunk of receive code, then return
+transmit		jmpret	txcode,rxcode	      'run a chunk of receive code, then return
 
-                        mov     t1,par                'check for head <> tail
-                        add     t1,#2 << 2
-                        rdlong  t2,t1
-                        add     t1,#1 << 2
-                        rdlong  t3,t1
-                        cmp     t2,t3           wz
-        if_z            jmp     #transmit
+			mov	t1,par		      'check for head <> tail
+			add	t1,#2 << 2
+			rdlong	t2,t1
+			add	t1,#1 << 2
+			rdlong	t3,t1
+			cmp	t2,t3		wz
+	if_z		jmp	#transmit
 
-                        add     t3,txbuff             'get byte and inc tail
-                        rdbyte  txdata,t3
-                        sub     t3,txbuff
-                        add     t3,#1
-                        and     t3,#$FF                    ' <----------- Change Buffer Size Here
-                        wrlong  t3,t1
+			add	t3,txbuff	      'get byte and inc tail
+			rdbyte	txdata,t3
+			sub	t3,txbuff
+			add	t3,#1
+			and	t3,#$FF			   ' <----------- Change Buffer Size Here
+			wrlong	t3,t1
 
-                        or      txdata,#$100          'ready byte to transmit
-                        shl     txdata,#2
-                        or      txdata,#1
-                        mov     txbits,#11
-                        mov     txcnt,cnt
+			or	txdata,#$100	      'ready byte to transmit
+			shl	txdata,#2
+			or	txdata,#1
+			mov	txbits,#11
+			mov	txcnt,cnt
 
-:bit                    test    rxtxmode,#%100  wz    'output bit on tx pin according to mode
-                        test    rxtxmode,#%010  wc
-        if_z_and_c      xor     txdata,#1
-                        shr     txdata,#1       wc
-        if_z            muxc    outa,txmask
-        if_nz           muxnc   dira,txmask
-                        add     txcnt,bitticks        'ready next cnt
+:bit			test	rxtxmode,#%100	wz    'output bit on tx pin according to mode
+			test	rxtxmode,#%010	wc
+	if_z_and_c	xor	txdata,#1
+			shr	txdata,#1	wc
+	if_z		muxc	outa,txmask
+	if_nz		muxnc	dira,txmask
+			add	txcnt,bitticks	      'ready next cnt
 
-:wait                   jmpret  txcode,rxcode         'run a chunk of receive code, then return
+:wait			jmpret	txcode,rxcode	      'run a chunk of receive code, then return
 
-                        mov     t1,txcnt              'check if bit transmit period done
-                        sub     t1,cnt
-                        cmps    t1,#0           wc
-        if_nc           jmp     #:wait
+			mov	t1,txcnt	      'check if bit transmit period done
+			sub	t1,cnt
+			cmps	t1,#0		wc
+	if_nc		jmp	#:wait
 
-                        djnz    txbits,#:bit          'another bit to transmit?
+			djnz	txbits,#:bit	      'another bit to transmit?
 
-                        jmp     #transmit             'byte done, transmit next byte
+			jmp	#transmit	      'byte done, transmit next byte
 '
 '
 ' Uninitialized data
 '
-t1                      res     1
-t2                      res     1
-t3                      res     1
+t1			res	1
+t2			res	1
+t3			res	1
 
-rxtxmode                res     1
-bitticks                res     1
+rxtxmode		res	1
+bitticks		res	1
 
-rxmask                  res     1
-rxbuff                  res     1
-rxdata                  res     1
-rxbits                  res     1
-rxcnt                   res     1
-rxcode                  res     1
+rxmask			res	1
+rxbuff			res	1
+rxdata			res	1
+rxbits			res	1
+rxcnt			res	1
+rxcode			res	1
 
-txmask                  res     1
-txbuff                  res     1
-txdata                  res     1
-txbits                  res     1
-txcnt                   res     1
-txcode                  res     1
+txmask			res	1
+txbuff			res	1
+txdata			res	1
+txbits			res	1
+txcnt			res	1
+txcode			res	1

@@ -61,7 +61,6 @@
 
 
 CON
-
     _clkmode = xtal1 + pll16x
     _xinfreq = 5_000_000
 
@@ -72,20 +71,6 @@ CON
     '' Video driver: set video output pin
     video = 16
 
-    '' Terminal Colors
-    TURQUOISE = $29
-    BLUE = $27
-    BABYBLUE = $95
-    RED = $C1
-    GREEN = $99
-    GOLDBROWN = $A2
-    AMBERDARK = $E2
-    LAVENDER = $A5
-    WHITE = $FF
-    HOTPINK = $C9
-    GOLD = $D9
-    PINK = $C5
-
 
     '' RS-232 driver values: PC(1) and Host(2) rx and tx lines
     r1 = 31
@@ -93,102 +78,63 @@ CON
     r2 = 25
     t2 = 24
 
-    '' I2C access to EEPROM (used for saving config)
-    EEPROMAddr = %1010_0000
-    EEPROM_Base = $7FE0
-    i2cSCL = 28
-    
-    XXX TBD move EEPROM to its own module
 
 OBJ
+    text: "VGA_1024"		' VGA Terminal Driver
+    kb:	"keyboard"		' Keyboard driver
+    ser: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
+    ser2: "FullDuplexSerial2562"
+    eeprom: "eeprom"		' EEPROM access
 
-  text: "VGA_1024"								' VGA Terminal Driver
-  kb:	"keyboard"								' Keyboard driver
-  ser:	"FullDuplexSerial256"							' Full Duplex Serial Controller
-  ser2: "FullDuplexSerial2562"							' 2nd Full Duplex Serial Controller
-  i2c:	"basic_i2c_driver"
+
 VAR
-
-  word key
-  Byte Index
-  Byte Rx
-  Byte rxbyte
-'  Long Stack[100]
-  Byte temp
-  Byte serdata
-  Long Baud
-  Byte termcolor
-  Long BR[8]
-  Long CLR[11]
-  long	i2cAddress, i2cSlaveCounter
-  Byte pcport
-  Byte ascii
-  Byte curset
-  word eepromLocation
-  Byte CR
-  Byte LNM
-PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6,byte7,loop,var1,col,row,temp2,tempbaud,source
+    ' Terminal configuration:
+    '  [baud, color, pc-port, force-7bit, cursor, auto-crlf]
+    long cfg[6]
+    pcport	'  pcport - Flag that PC port (2) is active
+    force7	'  force7 - Flag force to 7 bits
+    autolf	'  autolf - Generate LF after CR
 
 
+PUB setConfig() | baud
+    ' Extract "hot" ones into global vars
+    pcport := cfg[2]
+    force7 := cfg[3]
+    autolf := cfg[5]
+
+    ' Decode to baud and set serial ports
+    baud := baudBits(cfg[0])
+
+PUB main | state, c
 
 
-  source:=@PIANO
-  LNM := 0			'CR only sent
-  i2c.Initialize(i2cSCL)
-  tempbaud:=0
-  CR := 0  '0= OFF 1 = CR AND LF
-  ascii := 0   '0=no 1=yes
-  pcport := 1 '1=pc port off, 2=on
-  termcolor:=5
-  curset := 5
-  BR[0]:=300
-  BR[1]:=1200
-  BR[2]:=2400
-  BR[3]:=4800
-  BR[4]:=9600
-  BR[5]:=19200
-  BR[6]:=38400
-  BR[7]:=57600
-  BR[8]:=115200
-  CLR[1]:=TURQUOISE
-  CLR[2]:=BLUE
-  CLR[3]:=BABYBLUE
-  CLR[4]:=RED
-  CLR[5]:=GREEN
-  CLR[6]:=GOLDBROWN
-  CLR[7]:=WHITE
-  CLR[8]:=HOTPINK
-  CLR[9]:=GOLD
-  CLR[10]:=PINK
-  CLR[11]:=AMBERDARK
+    ' Try to read EEPROM config
+    if eeprom.readCfg(cfg) == 0
+	' Set default config: 9600 baud, pcport OFF, don't force ASCII
+	'  or LF. white characters, white underscore cursor
+	cfg[0] := 4
+	cfg[1] := 5
+	cfg[2] := pcport := 0
+	cfg[3] := force7 := 0
+	cfg[4] := 5
+	cfg[5] := autolf := 0
 
-'' Determine if previous settings are stored in EEPROM, if so, retrive for user
-  eepromLocation := EEPROM_Base							'Point i2c to EEPROM storage
-  temp2 := i2c.ReadByte(i2cSCL, EEPROMAddr, eepromLocation)			'read test byte to see if data stored
-  if temp2 == 55								'we have previously recorded settings, so restore them
-     eepromLocation +=4								'increase to next location
-     tempbaud := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)		'read Baud as temp
-     eepromLocation +=4
-     termcolor := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)		'read terminal color
-     eepromLocation +=4
-     pcport := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read pcport on/off setting
-     eepromLocation +=4
-     ascii := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read force 7bit setting
-     eepromLocation +=4
-     curset := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read cursor type
-     eepromLocation +=4
-     CR := i2c.ReadLong(i2cSCL, EEPROMAddr, eepromLocation)			'read CR W/LF ON/OFF
-     waitcnt(clkfreq/200 + cnt)
+    ' Start VGA output driver
+    text.start(video)
 
+    ' Start Keyboard Driver
+    kb.startx(26, 27, NUM, RepeatRate)
 
+    ' Initialize RS-232 ports.  We'll shortly be restarting them
+    '  after we choose a config
+    ser.start(r1, t1, 0, 9600)
+    ser2.start(r2, t2, 0, 9600)
 
+    ' Apply the config
+    setConfig()
 
-  Baud:=BR[tempbaud]
-  text.start(video)
-  text.color(CLR[termcolor])
-  kb.startx(26, 27, NUM, RepeatRate)						'Start Keyboard Driver
-  ser.start(r1,t1,0,baud)							'Start Port2 to PC
-  ser2.start(r2,t2,0,baud)							'Start Port1 to main device
+  XXX this goes in apply of config
+
   Baud:=tempbaud
   text.cls(Baud,termcolor,pcport,ascii,CR)
 '  text.clsupdate(Baud,termcolor,pcport,ascii,CR)
@@ -600,21 +546,65 @@ PUB main | i,j,k,remote,remote2,record,vt100,byte2,byte3,byte1,byte4,byte5,byte6
 	 text.out(remote)
       record:=remote ''record last byte
 
+'' Convert baud rate index into actual bit rate
+PUB baudBits(idx) : res
+    if idx == 0
+	res := 300
+    elseif idx == 1
+	res := 1200
+    elseif idx == 2
+	res := 1200
+    elseif idx == 3
+	res := 1200
+    elseif idx == 4
+	res := 1200
+    elseif idx == 5
+	res := 1200
+    elseif idx == 6
+	res := 1200
+    elseif idx == 7
+	res := 1200
+    elseif idx == 8
+	res := 1200
+    else
+	res := 9600
 
-PUB EEPROM | eepromData
-	eepromLocation := EEPROM_Base
+'' Convert color index into system color value
+PUB color(idx) : res
+    if idx == 0
+	' TURQUOISE
+	res := $29
+    elseif idx == 1
+	' BLUE
+	res := $27
+    elseif idx == 2
+	' BABYBLUE
+	res := $95
+    elseif idx == 3
+	' RED
+	res := $C1
+    elseif idx == 4
+	' GREEN
+	res := $99
+    elseif idx == 5
+	' GOLDBROWN
+	res := $A2
+    elseif idx == 6
+	' WHITE
+	res := $FF
+    elseif idx == 7
+	' HOTPINK
+	res := $C9
+    elseif idx == 8
+	' GOLD
+	res := $D9
+    elseif idx == 9
+	' PINK
+	res := $C5
+    elseif idx == 10
+	' AMBERDARK
+	res := $E2
+    else
+	' Default is turquoise
+	res := 0
 
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, 55)
-	eepromLocation +=4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, Baud)
-	eepromLocation +=4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, termcolor)
-	eepromLocation +=4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, pcport)
-	eepromLocation +=4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, ascii)
-	eepromLocation +=4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, curset)
-	eepromLocation +=4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, eepromLocation, CR)
-	waitcnt(clkfreq/200 + cnt)

@@ -28,20 +28,23 @@ VAR
 				'  description in VGA_HiRes_Text.spin)
     long sync			' Sync used by VGA routine,
     byte inverse		' Flag for painting inverse chars
+    byte tmpl[cols]		' Temp buffer for a line
 
 
 PUB start(BasePin) | i, char
 
-    ''start vga
+    ' Start vga
     vga.start(BasePin, @screen, @colors, @cursor, @sync)
     waitcnt(clkfreq * 1 + cnt)	'wait 1 second for cogs to start
 
-    ''init screen colors to gold on blue
-    repeat i from 0 to rows - 1
-	colors[i] := GOLDBLUE
+    ' Init screen colors to gold on blue
+    setColor(GOLDBLUE)
 
-    '' init cursor to underscore with slow blink
+    '' Init cursor to underscore with slow blink
     cursor[2] := %110
+
+    '' No inverse
+    inverse := 0
 
 '' Set value of "inverse char" flag
 PUB setInv(c)
@@ -67,7 +70,7 @@ PUB setCursor(c) | i
     cursor[2] := i
 
 '' Clear screen
-PUB cls
+PUB cls()
     longfill(@screen, $20202020, lchars)
 
 '' Clear to end of line
@@ -122,3 +125,21 @@ PUB insLine(pos) | base, nxt
 	pos := nxt
     while pos > base
     clEOL(base)
+
+'' Insert a char at the given position
+PUB insChar(pos) | count
+    ' Due to ripple effect, we buffer to tmpl[], then move back
+    count := (cols - (pos // cols)) - 1
+    bytemove(tmpl, @screen + pos, count)
+    screen[pos] = " "
+    bytemove(@screen + pos + 1, tmpl, count)
+
+'' Delete char at given position
+PUB delChar(pos) | count
+    count := (cols - (pos // cols)) - 1
+    bytemove(@screen + pos, @screen + pos + 1, count)
+    screen[pos + count] = " "
+
+'' Put a char at the named position
+PUB putc(pos, c)
+    screen[pos] = c

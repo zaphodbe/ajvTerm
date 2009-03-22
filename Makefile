@@ -12,3 +12,8 @@ ajvTerm.binary: $(TOPSRC) $(SRCS) $(WAVS)
 
 FullDuplexSerial2562.spin: FullDuplexSerial256.spin
 	cp FullDuplexSerial256.spin FullDuplexSerial2562.spin
+
+clean:
+	rm -f *.binary
+clobber: clean
+	rm -f FullDuplexSerial2562.spin

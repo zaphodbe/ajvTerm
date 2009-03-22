@@ -2,63 +2,6 @@
 ''	VT-100 emulation
 ''
 '' Based on code from Vince Briel
-'' VT-100 code from Jeff Ledger
-''
-''		Current VT-100 Code list
-''
-''	ESC[m			Turn off character attributes
-''	ESC[0m			Turn off character attributes
-''	ESC[1m			Turn bold character on (reverse)
-''	ESC[7m			Turn reverse video on
-''	ESC[nA			Move cursor up n lines
-''	ESC[nB			Move cursor down n lines
-''	ESC[nC			Move cursor right n lines
-''	ESC[nD			Move cursor left n lines
-''	ESC[H			Move cursor to upper left corner
-''	ESC[;H			Move cursor to upper left corner
-''	ESC[line;columnH	Move cursor to screen location v,h
-''	ESC[f			Move cursor to upper left corner
-''	ESC[;f			Move cursor to upper left corner
-''	ESC[line;columnf	Move cursor to sceen location v,h
-''	ESCD			Move/scroll window up one line
-''	ESC[D			Move/scroll window up one line
-''	ESCL			Move/scroll window up one line (undocumented)
-''	ESC[L			Move/scroll window up one line (undocumented)
-''	ESCM			Move/scroll window down one line
-''	ESCK			Clear line from cursor right
-''	ESC[0K			Clear line from cursor right
-''	ESC[1K			Clear line from cursor left
-''	ESC[2K			Clear entire line
-''	ESC[J			Clear screen from cursor down
-''	ESC[0J			Clear screen from cursor down
-''	ESC[1J			Clear screen from cursor up
-''	ESC[2J			Clear entire screen
-''	ESC[0c			Terminal ID responds with [?1;0c
-''	ESC[c			 (ditto)
-''
-'' List of ignored codes
-''
-''	ESC[xxh			All of the ESC[20h thru ESC[?9h commands
-''	ESC[xxl			All of the ESC[20i thru ESC[?9i commands
-''	ESC=			Alternate keypad mode
-''	ESC<			Enter/Exit ANSI mode
-''	ESC>			Exit Alternate keypad mode
-''	Esc5n			Device status report
-''	Esc0n			Response: terminal is OK
-''	Esc3n			Response: terminal is not OK
-''	Esc6n			Get cursor position
-''	EscLine;ColumnR		Response: cursor is at v,h
-''	Esc#8			Screen alignment display
-''	Esc[2;1y		Confidence power up test
-''	Esc[2;2y		Confidence loopback test
-''	Esc[2;9y		Repeat power up test
-''	Esc[2;10y		Repeat loopback test
-''	Esc[0q			Turn off all four leds
-''	Esc[1q			Turn on LED #1
-''	Esc[2q			Turn on LED #2
-''	Esc[3q			Turn on LED #3
-''	Esc[4q			Turn on LED #4
-
 
 CON
     _clkmode = xtal1 + pll16x
@@ -90,10 +33,15 @@ OBJ
 VAR
     ' Terminal configuration:
     '  [baud, color, pc-port, force-7bit, cursor, auto-crlf]
+    '    0      1      2          3         4        5
     long cfg[6]
     pcport	'  pcport - Flag that PC port (2) is active
     force7	'  force7 - Flag force to 7 bits
     autolf	'  autolf - Generate LF after CR
+    state	' Main terminal emulation state
+    a0		'  Arg 0 to an escape sequence
+    a1		'   ...arg 1
+    onlast	' Flag that we've just put a char on last column
 
 
 PUB setConfig() | baud
@@ -104,10 +52,354 @@ PUB setConfig() | baud
 
     ' Decode to baud and set serial ports
     baud := baudBits(cfg[0])
+    ser.stop()
+    ser2.stop()
+    ser.start(r1, t1, 0, baud)
+    ser2.start(r2, t2, 0, baud)
 
-PUB main | state, c
+    ' Set color and cursor
+    text.setCursor(cfg[4])
+    text.setColor(cfg[1])
 
+PUB main()
 
+    ' One-time setup
+    init()
+
+    ' Main loop
+    repeat
+	' Dispatch main keyboard and serial streams
+	doKey()
+	doSerial0()
+
+	' Handling of second host serial port
+	if pcport <> 0
+	    doSerial1()
+
+'' Process a byte from our PC port
+PUB doSerial1() | c
+    ' Look at the port for data, send to ser2 if there is
+    c := ser.rxcheck
+    if c < 0
+	return
+    ser2.tx(c)
+
+'' Process bytes from our host port
+PUB doSerial0() | c
+    oldpos := pos
+
+    ' Consume bytes until FIFO is empty
+    repeat
+	c := ser2.rxcheck
+	if c < 0
+	    ' When last of bytes is pulled, move hardware cursor
+	    '  if position is changed.
+	    if oldpos <> pos
+		text.cursor(pos)
+	    return
+
+	' If PC port active, give it a copy
+	if pcport <> 0
+	    ser.tx(c)
+
+	' Strip high bit if so configured
+	if force7 <> 0
+	    c &= $7F
+
+	' Process char
+	singleSerial0(c)
+
+'' Take action for ANSI-style sequence
+PUB ansi(c, a0, a1) | x
+    ' Always reset input state machine at end of sequence
+    state := 0
+
+    case c
+
+    "A":	' Move cursor up line(s)
+	repeat while a0-- > 0
+	    pos -= cols
+	    if pos < 0
+		pos += cols
+		return
+
+    "B":	' Move cursor down line(s)
+	repeat while a0-- > 0
+	    pos += cols
+	    if pos >= chars
+		pos -= cols
+		return
+
+    "C":	' Move cursor right
+	repeat while a0-- > 0
+	    pos += 1
+	    if pos >= chars
+		pos -= 1
+		return
+
+    "D":	' Move cursor left
+	repeat while a0-- > 0
+	    pos -= 1
+	    if pos < 0
+		pos := 0
+		return
+
+    "L":	' Insert line(s)
+	repeat while a0-- > 0
+	    text.insLine(pos)
+
+    "M":	' Delete line(s)
+	repeat while a0-- > 0
+	    text.delLine(pos)
+
+    "@":	' Insert char(s)
+	onlast := 0
+	repeat while a0--
+	    text.insChar(pos)
+
+    "P":	' Delete char(s)
+	repeat while a0--
+	    text.delChar(pos)
+
+    "J":	' Clear screen/EOS
+	if a0 <> 1
+	    ' Any arg but 1, clear whole screen
+	    text.cls()
+	else
+	    ' Otherwise clear from current position to end of screen
+	    text.clEOL(pos)
+	    x = pos + cols
+	    x -= cols - (pos // cols)
+	    repeat while x < chars
+		text.clEOL(pos)
+
+    "H":	' Set cursor position
+	if a0 == -1
+	    a0 := 1
+	if a1 == -1
+	    a1 := 1
+	pos := (cols * (a0-1)) + (a1 - 1)
+	if pos < 0
+	    pos := 0
+	if pos >= chars
+	    pos := chars-1
+
+    "K":	' Clear to end of line
+	' TBD, "onlast" treatment
+	text.clEOL(pos)
+
+    "m":	' Set character enhancements
+	' We just map any enhancement to be inverted text
+	if a0 <> 0
+	    a0 := 1
+	text.inv(a0)
+
+'' Process next byte from our host port
+PUB singleSerial0(c)
+    case state
+
+    ' State 0: ready for new data to display or start of escape sequence
+    0:
+	' Printing chars; put on screen
+	if (c >= 32) && (c < 128)
+	    text.putc(pos++, c)
+	    if pos >= chars
+		pos = lastline
+		text.delLine(0)
+	    return
+
+	' Escape sequence started
+	if c == 27
+	    state := 1
+	    return
+
+	' CR
+	if c == 13
+	    pos := pos - (pos // cols)
+	    return
+
+	' LF
+	if c == 10
+	    pos += cols
+	    if pos >= chars
+		pos -= cols
+		text.delLine(0)
+	    return
+
+	' Backspace
+	if c == 8
+	    if pos > 0
+		pos -= 1
+	    return
+
+    ' State 1: ESC received, ready for escape sequence
+    1:
+	' ESC-[, start of extended ANSI style arguments
+	if c == "["
+	    a0 := a1 := -1
+	    state := 2
+	    return
+
+	' ESC-P, cursor down one line
+	if c == "P"
+	    pos += cols
+	    if pos >= chars
+		pos -= cols
+	    return
+
+	' ESC-K, cursor left one position
+	if c == "K"
+	    if pos > 0
+		pos -= 1
+	    return
+
+	' ESC-H, cursor up one line
+	if c == "H"
+	    pos -= cols
+	    if pos < 0
+		pos += cols
+	    return
+
+	' ESC-D, scroll one line
+	if c == "D"
+	    text.delLine(0)
+	    return
+
+	' ESC-M, scroll backward
+	if c == "M"
+	    text.insLine(0)
+	    return
+
+	' ESC-G, cursor home
+	if c == "G"
+	    pos := 0
+	    return
+
+	' ESC-(, char set selection (decoded and ignored)
+	if c == "("
+	    state := TBD
+	    return
+
+	' Unknown sequence, ignore
+	return
+
+    ' State 2: ESC-[, start decoding first numeric arg
+    2:
+	' Digits, assemble value
+	if (c >= "0") && (c <= "9")
+	    if a0 == -1
+		a0 := c - "0"
+	    else
+		a0 := (a0*10) + (c - "0")
+	    return
+
+	' Semicolon, advance to arg1
+	if c == ";"
+	    state := 3
+	    return
+
+	' End of input sequence
+	ansi(c, a0, a1)
+	return
+
+    ' State 3: ESC-[<digits>;, start decoding second numeric arg
+    3:
+	' Digits, assemble value
+	if (c >= "0") && (c <= "9")
+	    if a1 == -1
+		a1 := c - "0"
+	    else
+		a1 := (a1*10) + (c - "0")
+	    return
+
+	' Semicolon, ignore subsequent args
+	if c == ";"
+	    state := 4
+	    return
+
+	' End of sequence
+	ansi(c, a0, a1)
+	return
+
+    ' State 4: ESC-[<digits>;<digits>;...  Ignore subsequent args
+    4:
+	if (c >= "0") && (c <= "9")
+	    return
+	if c == ";"
+	    return
+	ansi(c, a0, a1)
+	return
+
+    ' State 5: ESC-(, ignore character set selection
+    5:
+	state := 0
+	return
+    return
+
+'' Convert baud rate index into actual bit rate
+PUB baudBits(idx) : res
+    if idx == 0
+	res := 300
+    elseif idx == 1
+	res := 1200
+    elseif idx == 2
+	res := 1200
+    elseif idx == 3
+	res := 1200
+    elseif idx == 4
+	res := 1200
+    elseif idx == 5
+	res := 1200
+    elseif idx == 6
+	res := 1200
+    elseif idx == 7
+	res := 1200
+    elseif idx == 8
+	res := 1200
+    else
+	res := 9600
+
+'' Convert color index into system color value
+PUB color(idx) : res
+    if idx == 0
+	' TURQUOISE
+	res := $29
+    elseif idx == 1
+	' BLUE
+	res := $27
+    elseif idx == 2
+	' BABYBLUE
+	res := $95
+    elseif idx == 3
+	' RED
+	res := $C1
+    elseif idx == 4
+	' GREEN
+	res := $99
+    elseif idx == 5
+	' GOLDBROWN
+	res := $A2
+    elseif idx == 6
+	' WHITE
+	res := $FF
+    elseif idx == 7
+	' HOTPINK
+	res := $C9
+    elseif idx == 8
+	' GOLD
+	res := $D9
+    elseif idx == 9
+	' PINK
+	res := $C5
+    elseif idx == 10
+	' AMBERDARK
+	res := $E2
+    else
+	' Default is turquoise
+	res := 0
+
+'' One-time initialization of terminal driver state
+PUB init()
     ' Try to read EEPROM config
     if eeprom.readCfg(cfg) == 0
 	' Set default config: 9600 baud, pcport OFF, don't force ASCII
@@ -130,18 +422,18 @@ PUB main | state, c
     ser.start(r1, t1, 0, 9600)
     ser2.start(r2, t2, 0, 9600)
 
+    ' Init VGA driver
+    text.start()
+
     ' Apply the config
     setConfig()
 
-  XXX this goes in apply of config
+    ' Init state vars
+    state := 0
+    onlast := 0
 
-  Baud:=tempbaud
-  text.cls(Baud,termcolor,pcport,ascii,CR)
-'  text.clsupdate(Baud,termcolor,pcport,ascii,CR)
-  text.inv(0)
-  text.cursorset(curset)
-  vt100:=0
-  repeat
+'' Read and dispatch a keystroke
+PUB doKey()
     key := kb.key								'Go get keystroke, then return here
 
     if key == 194 'up arrow
@@ -217,394 +509,4 @@ PUB main | state, c
        'this probably needs to be if CR == 1
 	 if LNM == 1 or CR == 1'send both CR and LF?
 	   ser2.tx(10)		'yes, set by LNM ESC command, send LF also
-
-
-
-'' END keyboard console routine
-
-
-
-'LOOK FOR SERIAL INPUT HERE
-    if pcport == 0								'Is PC turned on at console for checking?
-       remote2 := ser.rxcheck							'Yes, look at the port for data
-       if (remote2 > -1)							'remote = -1 if no data
-	  ser2.tx(remote2)							'Send the data out to the host device
-	  waitcnt(clkfreq/200 + cnt)						'Added to attempt eliminate dropped characters
-    remote := ser2.rxcheck							'Look at host device port for data
-    if (remote > -1)
-       if ascii == 1 'yes force 7 bit ascii
-	  if (remote > 127)
-	     remote := remote -128
-       if pcport == 0
-	  ser.tx(remote)
-'Start of VT100 code
-      if remote == 27											'vt100 ESC code is being sent
-	 vt100:=1
-	 byte1:=0
-	 byte2:=0
-	 byte3:=0
-	 byte4:=0
-	 byte5:=0
-	 byte6:=0
-	 byte7:=0
-	 remote:=0
-	 temp2:=0											'Don't display the ESC code
-      if remote == 99 and vt100 == 1
-	 remote:=0
-	 vt100:=0
-	 text.cls(Baud,termcolor,pcport,ascii,CR)
-      if remote == 61 and vt100 == 1										  'lool for ESC=
-	 vt100:= remote := 0
-
-
-      'put ESC D and ESC M here
-      if remote == 77 and vt100 == 1 'AKA ESC M
-	 text.scrollM
-	 vt100 := 0
-      if remote == 68 and vt100 == 1 'AKA ESC D
-	 if byte2 <> 91 and byte3 <> 91 and byte4 <> 91  'not esc[D
-	    'text.scrollD
-	    vt100 := 0
-      if remote == 76 and vt100 == 1 'AKA ESC L
-      if remote == 91 and vt100 == 1									'look for open bracket [
-	 vt100:=2											'start recording code
-      if remote == 62 and vt100 == 1 or remote == 60 and vt100 == 1					'look for < & >
-	 vt100:=0 ' not sure why this is coming up, can't find in spec.
-      if vt100==2 ''Check checking for VT100 emulation codes
-	 if remote > 10
-	   byte7:=byte6
-	   byte6:=byte5											' My VTCode Mini Buffer
-	   byte5:=byte4
-	   byte4:=byte3
-	   byte3:=byte2											'Record the last 7 bytes
-	   byte2:=byte1
-	   byte1:=remote
-
-	 if remote == 109										'look for lowercase m
-	    if byte2 == 91										'if [m turn off to normal set
-	       text.inv(0)
-	       vt100:=0
-	    if byte2 == 49 and vt100 > 0									      'is it ESC[1m BOLD
-	       text.inv(1)
-	       vt100 := 0
-	    if byte2  == 55 and vt100 > 0									      'is it ESC[7m?
-	       text.inv(1)
-	       vt100 := 0
-	    if byte2  == 48 and vt100 > 0									      '0 is back to normal
-	       text.inv(0)
-	       vt100:=0
-
-
-	 if remote == 104										'look for lowercase h set CR/LF mode
-	    if byte2 == 48 'if character before h is 0 maybe command is 20h
-	       if byte3 == 50 'if byte3 then it is for sure 20h
-		 LNM := 0
-	    vt100:=0
-
-	 if remote == 61										'lool for =
-	    vt100:=0
-
-	 if remote == 114										'look for lowercase r
-	    vt100:=0
-
-	 if remote == 108										'look for lowercase l
-	    if byte2 == 48 'if character before l is 0 maybe command is 20l
-	       if byte3 == 50 'if byte3 then it is for sure 20l
-		 LNM := 1  '0 means CR/LF in CR mode only
-	    vt100:=0
-
-	 if remote == 62  'look for >
-	    vt100:=0
-	 if remote == 77										'ESC M look for obscure scroll window code
-	    text.scrollM
-	    vt100:=0
-	 'if remote == 68 or remote == 76 ' look for ESC D  or ESC L
-	 '   text.scrollD
-	 '   vt100:=0
-	 if remote == 72 or remote == 102								' HOME CURSOR (uppercase H or lowercase f)
-	    if byte2==91 or byte2==59									'look for [H or [;f maybe [xx;H
-	       if byte5 == 91 'then esc[nn;H
-		  byte4:=byte4-48
-		  byte3:=byte3-48
-		  byte4:=byte4*10
-		  byte4:=byte4+byte3
-		  var1 := byte4
-		  loop:=0
-		  col:=0 'new code
-		  text.cursloc(col,row)
-		  'text.cursrow(var1)
-		  vt100:=0
-	       else
-		  text.home
-		  vt100:=0
-	    '' Check for X & Y with [H or ;f   -   Esc[Line;ColumnH
-
-	    else											'here remote is either H or f
-	      if byte4 == 59										'is col is greater than 9     ; ALWAYS if byte4=59
-		byte3:=byte3-48										'Grab 10's
-		byte2:=byte2-48										'Grab 1's
-		byte3:=byte3*10										'Multiply 10's
-		byte3:=byte3+byte2									'Add 1's
-		col:=byte3										'Set cols
-
-		if byte7 == 91										'Assume row number is greater than 9  if ; at byte 4 and [ at byte 7 greater than 9
-		   byte6:=byte6-48									'Grab 10's
-		   byte5:=byte5-48									'Grab 1's
-		   byte6:=byte6*10									'Multiply 10's
-		   byte6:=byte6+byte5									'Add 1's
-		   row:=byte6
-
-		if byte6 == 91										'Assume row number is less than 10
-		   byte5:=byte5 - 48									'Grab 1's
-		   row:=byte5
-
-	      if byte3 == 59										' Assume that col is less an 10
-		byte2:=byte2-48										'Grab 1's
-		col:=byte2										'set cols
-
-		if byte6 == 91										'Assume row number is greater than 9
-		   byte5:=byte5-48									'Grab 10's
-		   byte4:=byte4-48									'Grab 1's
-		   byte5:=byte5*10									'Multiply 10's
-		   byte5:=byte5+byte4									'Add 1's
-		   row:=byte5
-		if byte5 == 91										'Assume that col is greater than 10
-		   byte4:=byte4-48									 'Grab 1's
-		   row:=byte4
-	      else
-		 if byte5:=59 'then ESC[nn;nnnH too far! read variable for row and make col max at 80
-		    col:= 80 'max it can be
-		    byte7:=byte7-48									 'Grab 10's
-		    byte6:=byte6-48									 'Grab 1's
-		    byte7:=byte7*10									 'Multiply 10's
-		    byte7:=byte7+byte6									 'Add 1's
-		    row:=byte7
-
-	      col:=col-1
-	      if row == -459
-		 row:=1
-	      if col == -40    ' Patches a bug I havn't found.	*yet*
-		 col := 58     ' A Microsoft approach to the problem. :)
-	      if row == -449
-		 row := 2      ' Appears to be an issue with reading
-	      if row == -439   ' single digit rows.
-		 row := 3
-	      if row == -429   ' This patch checks for the bug and replaces
-		 row := 4      ' the faulty calculation.
-	      if row == -419
-		 row := 5      ' Add to list to find the source of bug later.
-	      if row == -409
-		 row := 6
-	      if row == -399
-		 row := 7
-	      if row == -389
-		 row := 8
-	      if row == -379
-		 row := 9
-
-	      if row < 0
-		 row:=0
-	      if col < 0
-		 col:=0
-	      if row > 35
-		 row :=35
-	      if col > 79
-		 col := 79
-
-	      text.cursloc(col,row)
-	    vt100:=0
-	 if remote == 114	'ESCr
-
-	       text.out(126)
-	 if remote == 74    '' CLEAR SCREEN
-	    if byte2==91    '' look for [J  '' clear screen from cursor to 25
-	       text.clsfromcursordown
-	    'vt100:=0
-	    if byte2==50    '' look for [2J '' clear screen
-	       text.cls(Baud,termcolor,pcport,ascii,CR)
-	    if byte2==49     'look for [1J
-	       text.clstocursor
-	    if byte2==48     'look for [0J
-	       text.clsfromcursordown
-	    vt100:=0
-	 if remote == 66    '' CURSOR DOWN    Esc[ValueB
-	    if byte4 == 91 '' Assume number over 10
-	      byte3:=byte3-48
-	      byte2:=byte2-48
-	      byte3:=byte3*10
-	      byte3:=byte3+byte2
-	      var1:=byte3
-	    if byte3 == 91 '' Assume number is less 10
-	      byte2:=byte2-48
-	      var1:=byte2
-	    if byte2 == 91 ''ESC[B no numbers move down one
-	      'text.out($C3)
-	      var1 := 1
-	    loop:=0
-	    repeat until loop == var1
-	       loop++
-	       text.out($C3)
-
-	    vt100:=0
-
-
-	 if remote == 65    '' CURSOR UP   Esc[ValueA
-	    if byte4 == 91 '' Assume number over 10
-	      byte3:=byte3-48
-	      byte2:=byte2-48
-	      byte3:=byte3*10
-	      byte3:=byte3+byte2
-	      var1:=byte3
-	    if byte3 == 91 '' Assume number is less 10
-	      byte2:=byte2-48
-	      var1:=byte2
-	    if byte2 == 91 ''ESC[A no numbers move down one
-
-	      var1 := 1
-	    loop:=0
-	    repeat until loop == var1
-	       text.out($C2)
-	       loop++
-	    vt100:=0
-
-
-	 if remote == 67    '' CURSOR RIGHT   Esc[ValueC
-	    if byte4 == 91 '' Assume number over 10
-	      byte3:=byte3-48
-	      byte2:=byte2-48
-	      byte3:=byte3*10
-	      byte3:=byte3+byte2
-	      var1:=byte3
-	    if byte3 == 91 '' Assume number is less 10
-	      byte2:=byte2-48
-	      var1:=byte2
-	    if byte2 == 91 ''ESC[C no numbers move RIGHT one
-
-	      var1 := 1
-	    loop:=0
-	    repeat until loop == var1
-	       text.out($C1)
-	       loop++
-	    vt100:=0
-
-	 if remote == 68    '' CURSOR LEFT   Esc[ValueD  OR ESC[D
-	    if byte4 == 91 '' Assume number over 10
-	      byte3:=byte3-48
-	      byte2:=byte2-48
-	      byte3:=byte3*10
-	      byte3:=byte3+byte2
-	      var1:=byte3
-	    if byte3 == 91 '' Assume number is less 10
-	      byte2:=byte2-48
-	      var1:=byte2
-	    if byte2 == 91 ''ESC[D no numbers move LEFT one
-
-	      var1 := 1
-	    loop:=0
-	    repeat until loop == var1
-	       text.out($C0)   'was $C0
-	       loop++
-	    vt100:=0
-
-	 if remote == 75   '' Clear line  Esc[K
-	   if byte2 == 91 '' Look for [
-	     text.clearlinefromcursor
-
-	     vt100:=0
-	   if byte2  == 48 ' look for [0K
-	      if byte3 == 91
-		 text.clearlinefromcursor
-
-		 vt100:=0
-	   if byte2 == 49  ' look for [1K
-	      if byte3 == 91
-		 text.clearlinetocursor
-		 vt100 := 0
-	   if byte2 == 50 ' look for [2K
-	      if byte3 == 91
-		 text.clearline
-
-		 vt100 := 0
-
-	 if remote == 99 ' look for [0c or [c		ESC [ ? 1 ; Ps c Ps=0 for VT-100 no options
-	   if byte2 == 91 '' Look for [
-		ser2.str(string(27,"[?1;0c"))
-		vt100 := 0
-	   if byte2 == 48
-		if byte3 == 91
-		     ser2.str(string(27,"[?1;0c"))
-		     vt100 := 0
-	 remote:=0 '' hide all codes from the VGA output.
-
-      if record == 13 and remote == 13	''LF CHECK
-	 if CR == 1
-	   text.out(remote)
-	 remote :=0
-      if remote == 08
-	 remote := $C0	  'now backspace just moves cursor, doesn't clear character
-      if remote > 8
-	 text.out(remote)
-      record:=remote ''record last byte
-
-'' Convert baud rate index into actual bit rate
-PUB baudBits(idx) : res
-    if idx == 0
-	res := 300
-    elseif idx == 1
-	res := 1200
-    elseif idx == 2
-	res := 1200
-    elseif idx == 3
-	res := 1200
-    elseif idx == 4
-	res := 1200
-    elseif idx == 5
-	res := 1200
-    elseif idx == 6
-	res := 1200
-    elseif idx == 7
-	res := 1200
-    elseif idx == 8
-	res := 1200
-    else
-	res := 9600
-
-'' Convert color index into system color value
-PUB color(idx) : res
-    if idx == 0
-	' TURQUOISE
-	res := $29
-    elseif idx == 1
-	' BLUE
-	res := $27
-    elseif idx == 2
-	' BABYBLUE
-	res := $95
-    elseif idx == 3
-	' RED
-	res := $C1
-    elseif idx == 4
-	' GREEN
-	res := $99
-    elseif idx == 5
-	' GOLDBROWN
-	res := $A2
-    elseif idx == 6
-	' WHITE
-	res := $FF
-    elseif idx == 7
-	' HOTPINK
-	res := $C9
-    elseif idx == 8
-	' GOLD
-	res := $D9
-    elseif idx == 9
-	' PINK
-	res := $C5
-    elseif idx == 10
-	' AMBERDARK
-	res := $E2
-    else
-	' Default is turquoise
-	res := 0
 

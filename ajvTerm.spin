@@ -27,7 +27,7 @@ OBJ
     kb:	"keyboard"		' Keyboard driver
     ser0: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
     ser1: "FullDuplexSerial2562"
-    eeprom: "eeprom"		' EEPROM access
+    eeprom: "EEPROM"		' EEPROM access
 
 
 VAR
@@ -35,6 +35,7 @@ VAR
     '  [baud, color, pc-port, force-7bit, cursor, auto-crlf]
     '    0      1      2          3         4        5
     long cfg[6]
+
     byte pcport	'  pcport - Flag that PC port (2) is active
     byte force7	'  force7 - Flag force to 7 bits
     byte autolf	'  autolf - Generate LF after CR
@@ -45,22 +46,33 @@ VAR
     word pos	' Current output/cursor position
 
 
-PUB setConfig | baud
+PUB setConfig | baud, color
     ' Extract "hot" ones into global vars
     pcport := cfg[2]
     force7 := cfg[3]
     autolf := cfg[5]
 
     ' Decode to baud and set serial ports
-    baud := baudBits(cfg[0])
+    baud := cfg[0]
+    if (baud < 0) OR (baud > 8)
+	baud := 9600
+    else
+	baud := baudBits[baud]
+    { TBD, after I add the UI for setting config
     ser0.stop
     ser1.stop
     ser0.start(r0, t0, 0, baud)
     ser1.start(r1, t1, 0, baud)
+    }
 
     ' Set color and cursor
+    color := cfg[1]
+    if (color < 0) OR (color > 10)
+	color := 6
+    else
+	color := colorBits[color]
+    text.setColor(color)
     text.setCursor(cfg[4])
-    text.setColor(cfg[1])
 
 PUB main
 
@@ -338,68 +350,6 @@ PUB singleSerial0(c)
 	return
     return
 
-'' Convert baud rate index into actual bit rate
-PUB baudBits(idx) : res3
-    if idx == 0
-	res3 := 300
-    elseif idx == 1
-	res3 := 1200
-    elseif idx == 2
-	res3 := 1200
-    elseif idx == 3
-	res3 := 1200
-    elseif idx == 4
-	res3 := 1200
-    elseif idx == 5
-	res3 := 1200
-    elseif idx == 6
-	res3 := 1200
-    elseif idx == 7
-	res3 := 1200
-    elseif idx == 8
-	res3 := 1200
-    else
-	res3 := 9600
-
-'' Convert color index into system color value
-PUB color(idx) : res4
-    if idx == 0
-	' TURQUOISE
-	res4 := $29
-    elseif idx == 1
-	' BLUE
-	res4 := $27
-    elseif idx == 2
-	' BABYBLUE
-	res4 := $95
-    elseif idx == 3
-	' RED
-	res4 := $C1
-    elseif idx == 4
-	' GREEN
-	res4 := $99
-    elseif idx == 5
-	' GOLDBROWN
-	res4 := $A2
-    elseif idx == 6
-	' WHITE
-	res4 := $FF
-    elseif idx == 7
-	' HOTPINK
-	res4 := $C9
-    elseif idx == 8
-	' GOLD
-	res4 := $D9
-    elseif idx == 9
-	' PINK
-	res4 := $C5
-    elseif idx == 10
-	' AMBERDARK
-	res4 := $E2
-    else
-	' Default is turquoise
-	res4 := 0
-
 '' One-time initialization of terminal driver state
 PUB init
     ' Try to read EEPROM config
@@ -475,3 +425,19 @@ PUB doKey | key, ctl
     if key == $CB
 	ser0.tx(27)
 	return
+
+
+DAT
+    '' Convert baud rate index into actual bit rate
+    '              0    1     2     3     4      5      6      7      8
+    baudBits long 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200
+
+
+    '' Map color index into system color value
+    '               0       1       2       3     4       5
+    '           TURQUOISE, BLUE, BABYBLUE, RED, GREEN, GOLDBROWN
+    colorBits byte $29,    $27,     $95,   $C1,  $99,    $A2
+
+    '               6       7      8     9        10
+    '             WHITE, HOTPINK, GOLD, PINK, AMBERDARK
+              byte $FF,    $C9,   $D9,  $C5,     $A5

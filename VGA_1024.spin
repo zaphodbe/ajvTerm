@@ -17,7 +17,7 @@ CON
 
 
 OBJ
-    vga : "vga_Hires_Text"	' The physical VGA driver
+    vga : "VGA_HiRes_Text"	' The physical VGA driver
 
 
 VAR
@@ -46,6 +46,10 @@ PUB start(BasePin) | i, char
     '' No inverse
     inverse := 0
 
+'' Set color information for display
+PUB setColor(val)
+    wordfill(@colors, val, rows)
+
 '' Set value of "inverse char" flag
 PUB setInv(c)
     inverse:=c	
@@ -70,7 +74,7 @@ PUB setCursor(c) | i
     cursor[2] := i
 
 '' Clear screen
-PUB cls()
+PUB cls
     longfill(@screen, $20202020, lchars)
 
 '' Clear to end of line
@@ -111,10 +115,6 @@ PUB setCursorPos(pos)
     cursor[0] := pos // cols
     cursor[1] := pos / cols
 
-'' Set color information for display
-PUB setColor(val)
-    wordfill(@colors, val, rows)
-
 '' Insert a line before this position
 PUB insLine(pos) | base, nxt
     base := pos - (pos // cols)
@@ -131,15 +131,15 @@ PUB insChar(pos) | count
     ' Due to ripple effect, we buffer to tmpl[], then move back
     count := (cols - (pos // cols)) - 1
     bytemove(tmpl, @screen + pos, count)
-    screen[pos] = " "
+    screen[pos] := " "
     bytemove(@screen + pos + 1, tmpl, count)
 
 '' Delete char at given position
 PUB delChar(pos) | count
     count := (cols - (pos // cols)) - 1
     bytemove(@screen + pos, @screen + pos + 1, count)
-    screen[pos + count] = " "
+    screen[pos + count] := " "
 
 '' Put a char at the named position
 PUB putc(pos, c)
-    screen[pos] = c
+    screen[pos] := c

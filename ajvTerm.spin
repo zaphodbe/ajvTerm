@@ -35,16 +35,17 @@ VAR
     '  [baud, color, pc-port, force-7bit, cursor, auto-crlf]
     '    0      1      2          3         4        5
     long cfg[6]
-    pcport	'  pcport - Flag that PC port (2) is active
-    force7	'  force7 - Flag force to 7 bits
-    autolf	'  autolf - Generate LF after CR
-    state	' Main terminal emulation state
-    a0		'  Arg 0 to an escape sequence
-    a1		'   ...arg 1
-    onlast	' Flag that we've just put a char on last column
+    byte pcport	'  pcport - Flag that PC port (2) is active
+    byte force7	'  force7 - Flag force to 7 bits
+    byte autolf	'  autolf - Generate LF after CR
+    byte state	' Main terminal emulation state
+    byte a0	'  Arg 0 to an escape sequence
+    byte a1	'   ...arg 1
+    byte onlast	' Flag that we've just put a char on last column
+    word pos	' Current output/cursor position
 
 
-PUB setConfig() | baud
+PUB setConfig | baud
     ' Extract "hot" ones into global vars
     pcport := cfg[2]
     force7 := cfg[3]
@@ -52,8 +53,8 @@ PUB setConfig() | baud
 
     ' Decode to baud and set serial ports
     baud := baudBits(cfg[0])
-    ser0.stop()
-    ser1.stop()
+    ser0.stop
+    ser1.stop
     ser0.start(r0, t0, 0, baud)
     ser1.start(r1, t1, 0, baud)
 
@@ -61,23 +62,23 @@ PUB setConfig() | baud
     text.setCursor(cfg[4])
     text.setColor(cfg[1])
 
-PUB main()
+PUB main
 
     ' One-time setup
-    init()
+    init
 
     ' Main loop
     repeat
 	' Dispatch main keyboard and serial streams
-	doKey()
-	doSerial0()
+	doKey
+	doSerial0
 
 	' Handling of second host serial port
 	if pcport
-	    doSerial1()
+	    doSerial1
 
 '' Process a byte from our PC port
-PUB doSerial1() | c
+PUB doSerial1 | c
     ' Look at the port for data, send to ser0 if there is
     c := ser1.rxcheck
     if c < 0
@@ -85,7 +86,7 @@ PUB doSerial1() | c
     ser0.tx(c)
 
 '' Process bytes from our host port
-PUB doSerial0() | c
+PUB doSerial0 | c, oldpos
     oldpos := pos
 
     ' Consume bytes until FIFO is empty
@@ -95,7 +96,7 @@ PUB doSerial0() | c
 	    ' When last of bytes is pulled, move hardware cursor
 	    '  if position is changed.
 	    if oldpos <> pos
-		text.cursor(pos)
+		text.setCursorPos(pos)
 	    return
 
 	' If PC port active, give it a copy
@@ -110,102 +111,102 @@ PUB doSerial0() | c
 	singleSerial0(c)
 
 '' Take action for ANSI-style sequence
-PUB ansi(c, a0, a1) | x
+PUB ansi(c) | x
 
     ' Always reset input state machine at end of sequence
     state := 0
 
     case c
 
-    "A":	' Move cursor up line(s)
+     "A":	' Move cursor up line(s)
 	repeat while a0-- > 0
-	    pos -= cols
+	    pos -= text#cols
 	    if pos < 0
-		pos += cols
+		pos += text#cols
 		return
 
-    "B":	' Move cursor down line(s)
+     "B":	' Move cursor down line(s)
 	repeat while a0-- > 0
-	    pos += cols
-	    if pos >= chars
-		pos -= cols
+	    pos += text#cols
+	    if pos >= text#chars
+		pos -= text#cols
 		return
 
-    "C":	' Move cursor right
+     "C":	' Move cursor right
 	repeat while a0-- > 0
 	    pos += 1
-	    if pos >= chars
+	    if pos >= text#chars
 		pos -= 1
 		return
 
-    "D":	' Move cursor left
+     "D":	' Move cursor left
 	repeat while a0-- > 0
 	    pos -= 1
 	    if pos < 0
 		pos := 0
 		return
 
-    "L":	' Insert line(s)
+     "L":	' Insert line(s)
 	repeat while a0-- > 0
 	    text.insLine(pos)
 
-    "M":	' Delete line(s)
+     "M":	' Delete line(s)
 	repeat while a0-- > 0
 	    text.delLine(pos)
 
-    "@":	' Insert char(s)
+     "@":	' Insert char(s)
 	onlast := 0
 	repeat while a0--
 	    text.insChar(pos)
 
-    "P":	' Delete char(s)
+     "P":	' Delete char(s)
 	repeat while a0--
 	    text.delChar(pos)
 
-    "J":	' Clear screen/EOS
+     "J":	' Clear screen/EOS
 	if a0 <> 1
 	    ' Any arg but 1, clear whole screen
-	    text.cls()
+	    text.cls
 	else
 	    ' Otherwise clear from current position to end of screen
 	    text.clEOL(pos)
-	    x = pos + cols
-	    x -= cols - (pos // cols)
-	    repeat while x < chars
+	    x := pos + text#cols
+	    x -= text#cols - (pos // text#cols)
+	    repeat while x < text#chars
 		text.clEOL(pos)
 
-    "H":	' Set cursor position
+     "H":	' Set cursor position
 	if a0 == -1
 	    a0 := 1
 	if a1 == -1
 	    a1 := 1
-	pos := (cols * (a0-1)) + (a1 - 1)
+	pos := (text#cols * (a0-1)) + (a1 - 1)
 	if pos < 0
 	    pos := 0
-	if pos >= chars
-	    pos := chars-1
+	if pos >= text#chars
+	    pos := text#chars-1
 
-    "K":	' Clear to end of line
+     "K":	' Clear to end of line
 	' TBD, "onlast" treatment
 	text.clEOL(pos)
 
-    "m":	' Set character enhancements
+     "m":	' Set character enhancements
 	' We just map any enhancement to be inverted text
 	if a0
 	    a0 := 1
-	text.inv(a0)
+	text.setInv(a0)
 
 '' Process next byte from our host port
 PUB singleSerial0(c)
     case state
 
     ' State 0: ready for new data to display or start of escape sequence
-    0:
+     0:
 	' Printing chars; put on screen
-	if (c >= 32) && (c < 128)
+	if (c >= 32) AND (c < 128)
 	    text.putc(pos++, c)
-	    if pos >= chars
-		pos = lastline
+	    if pos >= text#chars
+		pos := text#lastline
 		text.delLine(0)
 	    return
 
@@ -216,14 +217,14 @@ PUB singleSerial0(c)
 
 	' CR
 	if c == 13
-	    pos := pos - (pos // cols)
+	    pos := pos - (pos // text#cols)
 	    return
 
 	' LF
 	if c == 10
-	    pos += cols
-	    if pos >= chars
-		pos -= cols
+	    pos += text#cols
+	    if pos >= text#chars
+		pos -= text#cols
 		text.delLine(0)
 	    return
 
@@ -234,7 +235,7 @@ PUB singleSerial0(c)
 	    return
 
     ' State 1: ESC received, ready for escape sequence
-    1:
+     1:
 	' ESC-[, start of extended ANSI style arguments
 	if c == "["
 	    a0 := a1 := -1
@@ -243,9 +244,9 @@ PUB singleSerial0(c)
 
 	' ESC-P, cursor down one line
 	if c == "P"
-	    pos += cols
-	    if pos >= chars
-		pos -= cols
+	    pos += text#cols
+	    if pos >= text#chars
+		pos -= text#cols
 	    return
 
 	' ESC-K, cursor left one position
@@ -256,9 +257,9 @@ PUB singleSerial0(c)
 
 	' ESC-H, cursor up one line
 	if c == "H"
-	    pos -= cols
+	    pos -= text#cols
 	    if pos < 0
-		pos += cols
+		pos += text#cols
 	    return
 
 	' ESC-D, scroll one line
@@ -278,16 +279,16 @@ PUB singleSerial0(c)
 
 	' ESC-(, char set selection (decoded and ignored)
 	if c == "("
-	    state := TBD
+	    state := 5
 	    return
 
 	' Unknown sequence, ignore
 	return
 
     ' State 2: ESC-[, start decoding first numeric arg
-    2:
+     2:
 	' Digits, assemble value
-	if (c >= "0") && (c <= "9")
+	if (c >= "0") AND (c <= "9")
 	    if a0 == -1
 		a0 := c - "0"
 	    else
@@ -300,13 +301,13 @@ PUB singleSerial0(c)
 	    return
 
 	' End of input sequence
-	ansi(c, a0, a1)
+	ansi(c)
 	return
 
     ' State 3: ESC-[<digits>;, start decoding second numeric arg
-    3:
+     3:
 	' Digits, assemble value
-	if (c >= "0") && (c <= "9")
+	if (c >= "0") AND (c <= "9")
 	    if a1 == -1
 		a1 := c - "0"
 	    else
@@ -319,88 +320,88 @@ PUB singleSerial0(c)
 	    return
 
 	' End of sequence
-	ansi(c, a0, a1)
+	ansi(c)
 	return
 
     ' State 4: ESC-[<digits>;<digits>;...  Ignore subsequent args
-    4:
-	if (c >= "0") && (c <= "9")
+     4:
+	if (c >= "0") AND (c <= "9")
 	    return
 	if c == ";"
 	    return
-	ansi(c, a0, a1)
+	ansi(c)
 	return
 
     ' State 5: ESC-(, ignore character set selection
-    5:
+     5:
 	state := 0
 	return
     return
 
 '' Convert baud rate index into actual bit rate
-PUB baudBits(idx) : res
+PUB baudBits(idx) : res3
     if idx == 0
-	res := 300
+	res3 := 300
     elseif idx == 1
-	res := 1200
+	res3 := 1200
     elseif idx == 2
-	res := 1200
+	res3 := 1200
     elseif idx == 3
-	res := 1200
+	res3 := 1200
     elseif idx == 4
-	res := 1200
+	res3 := 1200
     elseif idx == 5
-	res := 1200
+	res3 := 1200
     elseif idx == 6
-	res := 1200
+	res3 := 1200
     elseif idx == 7
-	res := 1200
+	res3 := 1200
     elseif idx == 8
-	res := 1200
+	res3 := 1200
     else
-	res := 9600
+	res3 := 9600
 
 '' Convert color index into system color value
-PUB color(idx) : res
+PUB color(idx) : res4
     if idx == 0
 	' TURQUOISE
-	res := $29
+	res4 := $29
     elseif idx == 1
 	' BLUE
-	res := $27
+	res4 := $27
     elseif idx == 2
 	' BABYBLUE
-	res := $95
+	res4 := $95
     elseif idx == 3
 	' RED
-	res := $C1
+	res4 := $C1
     elseif idx == 4
 	' GREEN
-	res := $99
+	res4 := $99
     elseif idx == 5
 	' GOLDBROWN
-	res := $A2
+	res4 := $A2
     elseif idx == 6
 	' WHITE
-	res := $FF
+	res4 := $FF
     elseif idx == 7
 	' HOTPINK
-	res := $C9
+	res4 := $C9
     elseif idx == 8
 	' GOLD
-	res := $D9
+	res4 := $D9
     elseif idx == 9
 	' PINK
-	res := $C5
+	res4 := $C5
     elseif idx == 10
 	' AMBERDARK
-	res := $E2
+	res4 := $E2
     else
 	' Default is turquoise
-	res := 0
+	res4 := 0
 
 '' One-time initialization of terminal driver state
-PUB init()
+PUB init
     ' Try to read EEPROM config
     if eeprom.readCfg(cfg) == 0
 	' Set default config: 9600 baud, pcport OFF, don't force ASCII
@@ -420,21 +421,19 @@ PUB init()
 
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config
+    ser0.start(r0, t0, 0, 9600)
     ser1.start(r1, t1, 0, 9600)
-    ser0.start(r2, t2, 0, 9600)
-
-    ' Init VGA driver
-    text.start()
 
     ' Apply the config
-    setConfig()
+    setConfig
 
     ' Init state vars
     state := 0
     onlast := 0
+    pos := 0
 
 '' Read and dispatch a keystroke
-PUB doKey() | key, ctl
+PUB doKey | key, ctl
     ' Get actual keystroke from driver
     key := kb.key
     if key == 0
@@ -461,11 +460,11 @@ PUB doKey() | key, ctl
 	return
 
     ' Printing char?
-    if (key >= " ") && (key <= $7F)
+    if (key >= " ") AND (key <= $7F)
 
 	' Turn A..Z into ^A..^Z
 	if ctl
-	    if (key >= "A") && (key <= "Z")
+	    if (key >= "A") AND (key <= "Z")
 		key -= $40
 
 	' Emit the character

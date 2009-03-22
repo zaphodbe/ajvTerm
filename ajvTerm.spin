@@ -46,6 +46,22 @@ VAR
     word pos	' Current output/cursor position
 
 
+PUB main
+
+    ' One-time setup
+    init
+
+    ' Main loop
+    repeat
+	' Dispatch main keyboard and serial streams
+	doKey
+	doSerial0
+
+	' Handling of second host serial port
+	if pcport
+	    doSerial1
+
+'' Apply the currently recorded config
 PUB setConfig | baud, color
     ' Extract "hot" ones into global vars
     pcport := cfg[2]
@@ -73,21 +89,6 @@ PUB setConfig | baud, color
 	color := colorBits[color]
     text.setColor(color)
     text.setCursor(cfg[4])
-
-PUB main
-
-    ' One-time setup
-    init
-
-    ' Main loop
-    repeat
-	' Dispatch main keyboard and serial streams
-	doKey
-	doSerial0
-
-	' Handling of second host serial port
-	if pcport
-	    doSerial1
 
 '' Process a byte from our PC port
 PUB doSerial1 | c

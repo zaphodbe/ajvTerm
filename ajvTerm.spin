@@ -366,6 +366,7 @@ PUB init
 
     ' Start VGA output driver
     text.start(video)
+    text.cls
 
     ' Start Keyboard Driver
     kb.startx(26, 27, NUM, RepeatRate)

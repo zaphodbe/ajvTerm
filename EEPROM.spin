@@ -45,7 +45,7 @@ PUB readCfg(params) : res2 | loc, x
 	cfg[x] := i2c.ReadLong(i2cSCL, EEPROMAddr, loc)
 
     '' Success; move result to caller's memory and return success
-    longmove(@params, @cfg, 6)
+    longmove(params, @cfg, 6)
     res2 := 1
     waitcnt(clkfreq/200 + cnt)
 

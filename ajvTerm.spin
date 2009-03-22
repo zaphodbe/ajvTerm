@@ -403,7 +403,7 @@ PUB color(idx) : res4
 '' One-time initialization of terminal driver state
 PUB init
     ' Try to read EEPROM config
-    if eeprom.readCfg(cfg) == 0
+    if eeprom.readCfg(@cfg) == 0
 	' Set default config: 9600 baud, pcport OFF, don't force ASCII
 	'  or LF. white characters, white underscore cursor
 	cfg[0] := 4

@@ -11,22 +11,22 @@ CON
     NUM = %100
     RepeatRate = %01_01000
 
-    '' Video driver: set video output pin
+    '' Video driver: video output pin
     video = 16
 
 
-    '' RS-232 driver values: PC(1) and Host(2) rx and tx lines
+    '' RS-232 driver values: Host(0) and PC (1) rx and tx lines
+    r0 = 25
+    t0 = 24
     r1 = 31
     t1 = 30
-    r2 = 25
-    t2 = 24
 
 
 OBJ
     text: "VGA_1024"		' VGA Terminal Driver
     kb:	"keyboard"		' Keyboard driver
-    ser: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
-    ser2: "FullDuplexSerial2562"
+    ser0: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
+    ser1: "FullDuplexSerial2562"
     eeprom: "eeprom"		' EEPROM access
 
 
@@ -52,10 +52,10 @@ PUB setConfig() | baud
 
     ' Decode to baud and set serial ports
     baud := baudBits(cfg[0])
-    ser.stop()
-    ser2.stop()
-    ser.start(r1, t1, 0, baud)
-    ser2.start(r2, t2, 0, baud)
+    ser0.stop()
+    ser1.stop()
+    ser0.start(r0, t0, 0, baud)
+    ser1.start(r1, t1, 0, baud)
 
     ' Set color and cursor
     text.setCursor(cfg[4])
@@ -73,16 +73,16 @@ PUB main()
 	doSerial0()
 
 	' Handling of second host serial port
-	if pcport <> 0
+	if pcport
 	    doSerial1()
 
 '' Process a byte from our PC port
 PUB doSerial1() | c
-    ' Look at the port for data, send to ser2 if there is
-    c := ser.rxcheck
+    ' Look at the port for data, send to ser0 if there is
+    c := ser1.rxcheck
     if c < 0
 	return
-    ser2.tx(c)
+    ser0.tx(c)
 
 '' Process bytes from our host port
 PUB doSerial0() | c
@@ -90,7 +90,7 @@ PUB doSerial0() | c
 
     ' Consume bytes until FIFO is empty
     repeat
-	c := ser2.rxcheck
+	c := ser0.rxcheck
 	if c < 0
 	    ' When last of bytes is pulled, move hardware cursor
 	    '  if position is changed.
@@ -99,11 +99,11 @@ PUB doSerial0() | c
 	    return
 
 	' If PC port active, give it a copy
-	if pcport <> 0
-	    ser.tx(c)
+	if pcport
+	    ser1.tx(c)
 
 	' Strip high bit if so configured
-	if force7 <> 0
+	if force7
 	    c &= $7F
 
 	' Process char
@@ -111,6 +111,7 @@ PUB doSerial0() | c
 
 '' Take action for ANSI-style sequence
 PUB ansi(c, a0, a1) | x
+
     ' Always reset input state machine at end of sequence
     state := 0
 
@@ -190,7 +191,7 @@ PUB ansi(c, a0, a1) | x
 
     "m":	' Set character enhancements
 	' We just map any enhancement to be inverted text
-	if a0 <> 0
+	if a0
 	    a0 := 1
 	text.inv(a0)
 
@@ -419,8 +420,8 @@ PUB init()
 
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config
-    ser.start(r1, t1, 0, 9600)
-    ser2.start(r2, t2, 0, 9600)
+    ser1.start(r1, t1, 0, 9600)
+    ser0.start(r2, t2, 0, 9600)
 
     ' Init VGA driver
     text.start()
@@ -433,80 +434,45 @@ PUB init()
     onlast := 0
 
 '' Read and dispatch a keystroke
-PUB doKey()
-    key := kb.key								'Go get keystroke, then return here
+PUB doKey() | key, ctl
+    ' Get actual keystroke from driver
+    key := kb.key
+    if key == 0
+	return
 
-    if key == 194 'up arrow
-       ser2.str(string(27,"[A"))
-    if key == 195 'down arrow
-       ser2.str(string(27,"[B"))
-       'ser2.out($0A)
-    if key == 193 'right arrow
-       ser2.str(string(27,"[C"))
-    if key == 192 'left arrow
-       ser2.str(string(27,"[D"))
+    ' Pick off flags
+    ctl := 0
+    if key & $200
+	ctl := 1
+    key &= $FF
 
-    if key >576
-       if key <603
-	  key:=key-576
-    if key > 608  and key < 635							'Is it a control character?
-       key:=key-608
-    'if key >0
-    '	text.dec(key)
-    if key == 200
-       key:=08
-    if key == 203								'Is it upper code for ESC key?
-       key:= 27									'Yes, convert to standard ASCII value
-    if key == 720
-      Baud++									'is ESC then + then increase baud or roll over
-      if Baud > 8
-	 Baud:=0
-      temp:=Baud
-      Baud:=BR[temp]
-      ser.stop
-      ser2.stop
-      ser.start(r1,t1,0,baud)							'ready port for PC
-      ser2.start(r2,t2,0,baud)							'ready port for HOST
-      Baud:=temp
-      text.clsupdate(Baud,termcolor,pcport,ascii,CR)
-      EEPROM
-    if key == 721
-       if ++termcolor > 11
-	  termcolor:=1
-       text.color(CLR[termcolor])
-       'text.clsupdate(Baud,termcolor,pcport,ascii)
-       EEPROM
-    if key == 722
-       if pcport == 1
-	  pcport := 0
-       else
-	  pcport := 1
-       text.clsupdate(Baud,termcolor,pcport,ascii,CR)
-       EEPROM
-    if key == 723
-       if ascii == 0
-	  ascii := 1
-       else
-	  ascii :=0
-       text.clsupdate(Baud,termcolor,pcport,ascii,CR)
-       EEPROM
-    if key == 724
-       curset++
-       if curset > 7
-	  curset := 1
-       text.cursorset(curset)
-       EEPROM
-    if key == 725 'F6
-       if CR == 1
-	  CR := 0
-       else
-	  CR := 1
-       text.clsupdate(Baud,termcolor,pcport,ascii,CR)
-       EEPROM
-    if key <128 and key > 0							'Is the keystroke PocketTerm compatible?    was 96
-       ser2.tx(key)								'Yes, so send it
-       if key == 13
-       'this probably needs to be if CR == 1
-	 if LNM == 1 or CR == 1'send both CR and LF?
-	   ser2.tx(10)		'yes, set by LNM ESC command, send LF also
+    ' up/down/right/left arrow keys
+    if key == 194
+	ser0.str(string(27,"[A"))
+	return
+    if key == 195
+	ser0.str(string(27,"[B"))
+	return
+    if key == 193
+	ser0.str(string(27,"[C"))
+	return
+    if key == 192
+	ser0.str(string(27,"[D"))
+	return
 
+    ' Printing char?
+    if (key >= " ") && (key <= $7F)
+
+	' Turn A..Z into ^A..^Z
+	if ctl
+	    if (key >= "A") && (key <= "Z")
+		key -= $40
+
+	' Emit the character
+	ser0.tx(key)
+	return
+
+    ' Map keyboard driver ESC to ASCII value
+    if key == $CB
+	ser0.tx(27)
+	return

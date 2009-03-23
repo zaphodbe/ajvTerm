@@ -26,6 +26,7 @@ OBJ
     text: "VGA_1024"		' VGA Terminal Driver
     kb:	"keyboard"		' Keyboard driver
     ser0: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
+    ser1: "FullDuplexSerial2562"
     eeprom: "EEPROM"		' EEPROM access
 
 
@@ -56,6 +57,10 @@ PUB main
 	doKey
 	doSerial0
 
+	' Handling of second host serial port
+	if pcport
+	    doSerial1
+
 '' Apply the currently recorded config
 PUB setConfig | baud, color
     ' Extract "hot" ones into global vars
@@ -71,7 +76,9 @@ PUB setConfig | baud, color
 	baud := baudBits[baud]
     { TBD, after I add the UI for setting config
     ser0.stop
+    ser1.stop
     ser0.start(r0, t0, 0, baud)
+    ser1.start(r1, t1, 0, baud)
     }
 
     ' Set color and cursor
@@ -82,6 +89,14 @@ PUB setConfig | baud, color
 	color := colorBits[color]
     text.setColor(color)
     text.setCursor(cfg[4])
+
+'' Process a byte from our PC port
+PUB doSerial1 | c
+    ' Look at the port for data, send to ser0 if there is
+    c := ser1.rxcheck
+    if c < 0
+	return
+    ser0.tx(c)
 
 '' Process bytes from our host port
 PUB doSerial0 | c, oldpos
@@ -96,6 +111,10 @@ PUB doSerial0 | c, oldpos
 	    if oldpos <> pos
 		text.setCursorPos(pos)
 	    return
+
+	' If PC port active, give it a copy
+	if pcport
+	    ser1.tx(c)
 
 	' Strip high bit if so configured
 	if force7
@@ -366,6 +385,7 @@ PUB init
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config
     ser0.start(r0, t0, 0, 9600)
+    ser1.start(r1, t1, 0, 9600)
 
     ' Apply the config
     setConfig

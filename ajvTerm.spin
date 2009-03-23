@@ -141,14 +141,14 @@ PUB ansi(c) | x
      "B":	' Move cursor down line(s)
 	repeat while a0-- > 0
 	    pos += text#cols
-	    if pos >= text#chars
+	    if pos => text#chars
 		pos -= text#cols
 		return
 
      "C":	' Move cursor right
 	repeat while a0-- > 0
 	    pos += 1
-	    if pos >= text#chars
+	    if pos => text#chars
 		pos -= 1
 		return
 
@@ -196,7 +196,7 @@ PUB ansi(c) | x
 	pos := (text#cols * (a0-1)) + (a1 - 1)
 	if pos < 0
 	    pos := 0
-	if pos >= text#chars
+	if pos => text#chars
 	    pos := text#chars-1
 
      "K":	' Clear to end of line
@@ -216,9 +216,9 @@ PUB singleSerial0(c)
     ' State 0: ready for new data to display or start of escape sequence
      0:
 	' Printing chars; put on screen
-	if (c >= 32) AND (c < 128)
+	if (c => 32) AND (c < 128)
 	    text.putc(pos++, c)
-	    if pos >= text#chars
+	    if pos => text#chars
 		pos := text#lastline
 		text.delLine(0)
 	    return
@@ -236,7 +236,7 @@ PUB singleSerial0(c)
 	' LF
 	if c == 10
 	    pos += text#cols
-	    if pos >= text#chars
+	    if pos => text#chars
 		pos -= text#cols
 		text.delLine(0)
 	    return
@@ -247,7 +247,7 @@ PUB singleSerial0(c)
 	    pos += (8 - (pos // 8))
 
 	    ' Scroll when tab to new line
-	    if pos >= text#chars
+	    if pos => text#chars
 		pos := text#lastline
 		text.delLine(0)
 	    return
@@ -269,7 +269,7 @@ PUB singleSerial0(c)
 	' ESC-P, cursor down one line
 	if c == "P"
 	    pos += text#cols
-	    if pos >= text#chars
+	    if pos => text#chars
 		pos -= text#cols
 	    return
 
@@ -312,7 +312,7 @@ PUB singleSerial0(c)
     ' State 2: ESC-[, start decoding first numeric arg
      2:
 	' Digits, assemble value
-	if (c >= "0") AND (c <= "9")
+	if (c => "0") AND (c =< "9")
 	    if a0 == -1
 		a0 := c - "0"
 	    else
@@ -331,7 +331,7 @@ PUB singleSerial0(c)
     ' State 3: ESC-[<digits>;, start decoding second numeric arg
      3:
 	' Digits, assemble value
-	if (c >= "0") AND (c <= "9")
+	if (c => "0") AND (c =< "9")
 	    if a1 == -1
 		a1 := c - "0"
 	    else
@@ -349,7 +349,7 @@ PUB singleSerial0(c)
 
     ' State 4: ESC-[<digits>;<digits>;...  Ignore subsequent args
      4:
-	if (c >= "0") AND (c <= "9")
+	if (c => "0") AND (c =< "9")
 	    return
 	if c == ";"
 	    return
@@ -423,21 +423,33 @@ PUB doKey | key, ctl
 	return
 
     ' Printing char?
-    if (key >= 0) AND (key <= $7F)
+    if (key => 0) AND (key =< $7F)
 
 	' Turn A..Z into ^A..^Z
 	if ctl
-	    if (key >= "A") AND (key <= "Z")
+	    if (key => "A") AND (key =< "Z")
 		key -= $40
 
 	' Emit the character
 	ser0.tx(key)
 	return
+    text.putc(pos++, 32+pos)
 
     ' Map keyboard driver ESC to ASCII value
     if key == $CB
 	ser0.tx(27)
 	return
+
+PUB prn(val) | dig
+    if val < 0
+	text.putc(pos++, "-")
+	prn(0 - val)
+	return
+    dig := 48 + (val // 10)
+    val := val/10
+    if val > 0
+	prn(val)
+    text.putc(pos++, dig)
 
 
 DAT

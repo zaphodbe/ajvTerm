@@ -40,8 +40,8 @@ VAR
     byte force7	'  force7 - Flag force to 7 bits
     byte autolf	'  autolf - Generate LF after CR
     byte state	' Main terminal emulation state
-    byte a0	'  Arg 0 to an escape sequence
-    byte a1	'   ...arg 1
+    long a0	'  Arg 0 to an escape sequence
+    long a1	'   ...arg 1
     byte onlast	' Flag that we've just put a char on last column
     word pos	' Current output/cursor position
 

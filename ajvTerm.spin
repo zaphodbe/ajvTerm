@@ -195,9 +195,10 @@ PUB ansi(c) | x, defVal
 	    ' Otherwise clear from current position to end of screen
 	    text.clEOL(pos)
 	    x := pos + text#cols
-	    x -= text#cols - (pos // text#cols)
+	    x -= (x // text#cols)
 	    repeat while x < text#chars
-		text.clEOL(pos)
+		text.clEOL(x)
+		x += text#cols
 
      "H":	' Set cursor position
 	if a0 == -1
@@ -440,6 +441,8 @@ PUB doKey | key, ctl
 	if ctl
 	    if (key => "A") AND (key =< "Z")
 		key -= $40
+	    elseif (key => "a") AND (key =< "z")
+		key -= $60
 
 	' Emit the character
 	ser0.tx(key)

@@ -412,7 +412,7 @@ PUB doKey | key, ctl
 	return
 
     ' Printing char?
-    if (key >= " ") AND (key <= $7F)
+    if (key >= 0) AND (key <= $7F)
 
 	' Turn A..Z into ^A..^Z
 	if ctl

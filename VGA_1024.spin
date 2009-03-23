@@ -52,7 +52,7 @@ PUB setColor(val)
 
 '' Set value of "inverse char" flag
 PUB setInv(c)
-    inverse:=c	
+    inverse := c	
 
 '' Set type of cursor
 PUB setCursor(c) | i
@@ -139,4 +139,6 @@ PUB delChar(pos) | count
 
 '' Put a char at the named position
 PUB putc(pos, c)
+    if inverse
+	c |= $80
     screen[pos] := c

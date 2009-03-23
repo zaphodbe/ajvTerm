@@ -123,6 +123,13 @@ PUB doSerial0 | c, oldpos
 	' Process char
 	singleSerial0(c)
 
+'' Set invert video based on control code
+PUB setInv(c)
+    if c == 1
+	text.setInv(1)
+    else
+	text.setInv(0)
+
 '' Take action for ANSI-style sequence
 PUB ansi(c) | x, defVal
 
@@ -131,14 +138,11 @@ PUB ansi(c) | x, defVal
 
     ' Map args to appropriate default
     ' Most get a default argument of 1, a few 0.
-    if (c == "r") OR (c == "M") OR (c == "J")
-	defVal := 0
-    else
-	defVal := 1
-    if a0 == -1
-	a0 := defVal
-    if a1 == -1
-	a1 := defVal
+    if (c <> "r") AND (c <> "M") AND (c <> "J") AND (c <> "m")
+	if a0 == -1
+	    a0 := 1
+	if a1 == -1
+	    a1 := 1
 
     case c
 
@@ -175,6 +179,8 @@ PUB ansi(c) | x, defVal
 	    text.insLine(pos)
 
      "M":	' Delete line(s)
+	if a0 == -1
+	    a0 := 0
 	repeat while a0-- > 0
 	    text.delLine(pos)
 
@@ -216,10 +222,9 @@ PUB ansi(c) | x, defVal
 	text.clEOL(pos)
 
      "m":	' Set character enhancements
-	' We just map any enhancement to be inverted text
-	if a0
-	    a0 := 1
-	text.setInv(a0)
+	setInv(a0)
+	if a1 <> -1
+	    setInv(a1)
 
 '' Process next byte from our host port
 PUB singleSerial0(c)

@@ -241,6 +241,17 @@ PUB singleSerial0(c)
 		text.delLine(0)
 	    return
 
+	' Tab
+	if c == 9
+	    ' Advance to next tab stop
+	    pos += (8 - (pos // 8))
+
+	    ' Scroll when tab to new line
+	    if pos >= text#chars
+		pos := text#lastline
+		text.delLine(0)
+	    return
+
 	' Backspace
 	if c == 8
 	    if pos > 0

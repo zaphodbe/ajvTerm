@@ -80,9 +80,7 @@ PUB cls
 '' Clear to end of line
 PUB clEOL(pos) | count
     count := cols - (pos // cols)
-    repeat
-	screen[pos++] := $20
-    while --count > 0
+    bytefill(@screen + pos, $20, count)
 
 '' Delete line at position
 PUB delLine(pos) | src, count
@@ -96,7 +94,7 @@ PUB delLine(pos) | src, count
     count := (chars - src) / 4
 
     ' Copy lines to close this line's position
-    if count < 0
+    if count > 0
 	longmove(@screen + pos, @screen + src, count)
 
     ' Blank last line
@@ -105,7 +103,7 @@ PUB delLine(pos) | src, count
 '' Clear from position to end of screen
 PUB clEOS(pos)
     cleol(pos)
-    pos += 80 - (pos // cols)
+    pos += cols - (pos // cols)
     repeat while pos < chars
 	longfill(@screen + pos, $20202020, lcols)
 	pos += cols
@@ -118,12 +116,11 @@ PUB setCursorPos(pos)
 '' Insert a line before this position
 PUB insLine(pos) | base, nxt
     base := pos - (pos // cols)
-    pos := chars
-    repeat
+    pos := lastline
+    repeat while pos > base
 	nxt := pos - cols
 	longmove(@screen + pos, @screen + nxt, lcols)
 	pos := nxt
-    while pos > base
     clEOL(base)
 
 '' Insert a char at the given position

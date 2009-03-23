@@ -24,7 +24,7 @@ CON
 
 OBJ
     text: "VGA_1024"		' VGA Terminal Driver
-    kb:	"keyboard"		' Keyboard driver
+    kb:	"Keyboard"		' Keyboard driver
     ser0: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
     ser1: "FullDuplexSerial2562"
     eeprom: "EEPROM"		' EEPROM access
@@ -74,12 +74,12 @@ PUB setConfig | baud, color
 	baud := 9600
     else
 	baud := baudBits[baud]
-    { TBD, after I add the UI for setting config
     ser0.stop
     ser1.stop
-    ser0.start(r0, t0, 0, baud)
-    ser1.start(r1, t1, 0, baud)
-    }
+    ser0.start(r0, t0, 0, 9600)
+    ser1.start(r1, t1, 0, 9600)
+    ' ser0.start(r0, t0, 0, baud)
+    ' ser1.start(r1, t1, 0, baud)
 
     ' Set color and cursor
     color := cfg[1]
@@ -124,10 +124,21 @@ PUB doSerial0 | c, oldpos
 	singleSerial0(c)
 
 '' Take action for ANSI-style sequence
-PUB ansi(c) | x
+PUB ansi(c) | x, defVal
 
     ' Always reset input state machine at end of sequence
     state := 0
+
+    ' Map args to appropriate default
+    ' Most get a default argument of 1, a few 0.
+    if (c == "r") OR (c == "M") OR (c == "J")
+	defVal := 0
+    else
+	defVal := 1
+    if a0 == -1
+	a0 := defVal
+    if a1 == -1
+	a1 := defVal
 
     case c
 
@@ -433,11 +444,15 @@ PUB doKey | key, ctl
 	' Emit the character
 	ser0.tx(key)
 	return
-    text.putc(pos++, 32+pos)
 
     ' Map keyboard driver ESC to ASCII value
     if key == $CB
 	ser0.tx(27)
+	return
+
+    ' Map keyboard backspace
+    if key == $C8
+	ser0.tx(8)
 	return
 
 '' Display a number on the screen

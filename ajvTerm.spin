@@ -440,6 +440,8 @@ PUB doKey | key, ctl
 	ser0.tx(27)
 	return
 
+'' Display a number on the screen
+'  (NB, doesn't deal with scrolling.)
 PUB prn(val) | dig
     if val < 0
 	text.putc(pos++, "-")

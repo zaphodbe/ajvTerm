@@ -146,6 +146,21 @@ PUB ansi(c) | x, defVal
 
     case c
 
+     "@":	' Insert char(s)
+	onlast := 0
+	repeat while a0--
+	    text.insChar(pos)
+
+     "d":	' Vertical position absolute
+	if (a0 < 1) OR (a0 > text#rows)
+	    a0 := text#rows
+	pos := ((a0-1) * text#cols) + (pos // text#cols)
+
+     "m":	' Set character enhancements
+	setInv(a0)
+	if a1 <> -1
+	    setInv(a1)
+
      "A":	' Move cursor up line(s)
 	repeat while a0-- > 0
 	    pos -= text#cols
@@ -174,24 +189,16 @@ PUB ansi(c) | x, defVal
 		pos := 0
 		return
 
-     "L":	' Insert line(s)
-	repeat while a0-- > 0
-	    text.insLine(pos)
-
-     "M":	' Delete line(s)
+     "H":	' Set cursor position
 	if a0 == -1
-	    a0 := 0
-	repeat while a0-- > 0
-	    text.delLine(pos)
-
-     "@":	' Insert char(s)
-	onlast := 0
-	repeat while a0--
-	    text.insChar(pos)
-
-     "P":	' Delete char(s)
-	repeat while a0--
-	    text.delChar(pos)
+	    a0 := 1
+	if a1 == -1
+	    a1 := 1
+	pos := (text#cols * (a0-1)) + (a1 - 1)
+	if pos < 0
+	    pos := 0
+	if pos => text#chars
+	    pos := text#chars-1
 
      "J":	' Clear screen/EOS
 	if a0 <> 1
@@ -206,25 +213,23 @@ PUB ansi(c) | x, defVal
 		text.clEOL(x)
 		x += text#cols
 
-     "H":	' Set cursor position
-	if a0 == -1
-	    a0 := 1
-	if a1 == -1
-	    a1 := 1
-	pos := (text#cols * (a0-1)) + (a1 - 1)
-	if pos < 0
-	    pos := 0
-	if pos => text#chars
-	    pos := text#chars-1
-
      "K":	' Clear to end of line
 	' TBD, "onlast" treatment
 	text.clEOL(pos)
 
-     "m":	' Set character enhancements
-	setInv(a0)
-	if a1 <> -1
-	    setInv(a1)
+     "L":	' Insert line(s)
+	repeat while a0-- > 0
+	    text.insLine(pos)
+
+     "M":	' Delete line(s)
+	if a0 == -1
+	    a0 := 0
+	repeat while a0-- > 0
+	    text.delLine(pos)
+
+     "P":	' Delete char(s)
+	repeat while a0--
+	    text.delChar(pos)
 
 '' Process next byte from our host port
 PUB singleSerial0(c)

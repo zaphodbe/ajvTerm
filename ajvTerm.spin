@@ -189,6 +189,11 @@ PUB ansi(c) | x, defVal
 		pos := 0
 		return
 
+     "G":	' Horizontal position absolute
+	if (a0 < 1) OR (a0 > text#cols)
+	    a0 := text#cols
+	pos := (pos - (pos // text#cols)) + (a0-1)
+
      "H":	' Set cursor position
 	if a0 == -1
 	    a0 := 1

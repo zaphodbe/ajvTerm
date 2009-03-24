@@ -14,19 +14,15 @@ CON
     '' Video driver: video output pin
     video = 16
 
-
     '' RS-232 driver values: Host(0) and PC (1) rx and tx lines
     r0 = 25
     t0 = 24
-    r1 = 31
-    t1 = 30
 
 
 OBJ
     text: "VGA_1024"		' VGA Terminal Driver
     kb:	"Keyboard"		' Keyboard driver
     ser0: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
-    ser1: "FullDuplexSerial2562"
     eeprom: "EEPROM"		' EEPROM access
 
 
@@ -36,7 +32,6 @@ VAR
     '    0      1      2          3         4        5
     long cfg[6]
 
-    byte pcport	'  pcport - Flag that PC port (2) is active
     byte force7	'  force7 - Flag force to 7 bits
     byte autolf	'  autolf - Generate LF after CR
     byte state	' Main terminal emulation state
@@ -57,14 +52,10 @@ PUB main
 	doKey
 	doSerial0
 
-	' Handling of second host serial port
-	if pcport
-	    doSerial1
-
 '' Apply the currently recorded config
 PUB setConfig | baud, color
     ' Extract "hot" ones into global vars
-    pcport := cfg[2]
+    ' pcport := cfg[2]
     force7 := cfg[3]
     autolf := cfg[5]
 
@@ -75,11 +66,8 @@ PUB setConfig | baud, color
     else
 	baud := baudBits[baud]
     ser0.stop
-    ser1.stop
     ser0.start(r0, t0, 0, 9600)
-    ser1.start(r1, t1, 0, 9600)
     ' ser0.start(r0, t0, 0, baud)
-    ' ser1.start(r1, t1, 0, baud)
 
     ' Set color and cursor
     color := cfg[1]
@@ -89,14 +77,6 @@ PUB setConfig | baud, color
 	color := colorBits[color]
     text.setColor(color)
     text.setCursor(cfg[4])
-
-'' Process a byte from our PC port
-PUB doSerial1 | c
-    ' Look at the port for data, send to ser0 if there is
-    c := ser1.rxcheck
-    if c < 0
-	return
-    ser0.tx(c)
 
 '' Process bytes from our host port
 PUB doSerial0 | c, oldpos
@@ -111,10 +91,6 @@ PUB doSerial0 | c, oldpos
 	    if oldpos <> pos
 		text.setCursorPos(pos)
 	    return
-
-	' If PC port active, give it a copy
-	if pcport
-	    ser1.tx(c)
 
 	' Strip high bit if so configured
 	if force7
@@ -394,11 +370,11 @@ PUB singleSerial0(c)
 PUB init
     ' Try to read EEPROM config
     if eeprom.readCfg(@cfg) == 0
-	' Set default config: 9600 baud, pcport OFF, don't force ASCII
+	' Set default config: 9600 baud, don't force ASCII
 	'  or LF. white characters, white underscore cursor
 	cfg[0] := 4
 	cfg[1] := 5
-	cfg[2] := pcport := 0
+	' cfg[2] := pcport := 0
 	cfg[3] := force7 := 0
 	cfg[4] := 5
 	cfg[5] := autolf := 0
@@ -413,7 +389,6 @@ PUB init
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config
     ser0.start(r0, t0, 0, 9600)
-    ser1.start(r1, t1, 0, 9600)
 
     ' Apply the config
     setConfig

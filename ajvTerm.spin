@@ -323,7 +323,8 @@ PUB singleSerial0(c)
 	    state := 5
 	    return
 
-	' Unknown sequence, ignore
+	' Unknown sequence, ignore and reset state machine
+	state := 0
 	return
 
     ' State 2: ESC-[, start decoding first numeric arg

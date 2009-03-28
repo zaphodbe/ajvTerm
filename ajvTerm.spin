@@ -430,10 +430,7 @@ PUB doKey | key, ctl
 
 	' Turn A..Z into ^A..^Z
 	if ctl
-	    if (key => "A") AND (key =< "Z")
-		key -= $40
-	    elseif (key => "a") AND (key =< "z")
-		key -= $60
+	    key &= $1F
 
 	' Emit the character
 	ser0.tx(key)

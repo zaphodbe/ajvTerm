@@ -6,9 +6,10 @@
 5 |  F4 - auto CR          |	auto CR off
 6 |  F5 - CAPS == swap Ctl |	== normal, == swap Ctl
 7 |  F6 - Screen save 1m   |	2/4/8
-8 | ENTER - save NVRAM     |
-9 | Esc - end config       |
-10+========================+
+8 |  F7 - Cursor           |
+9 | ENTER - save NVRAM     |
+10| Esc - end config       |
+11+========================+
   01234567890123456789012345
 
  9 rows

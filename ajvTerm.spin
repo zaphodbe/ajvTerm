@@ -24,7 +24,7 @@ CON
 
     '' Geometry for config screen area
     cfgCols = 26
-    cfgRows = 11
+    cfgRows = 12
 
 
 OBJ
@@ -36,9 +36,9 @@ OBJ
 
 VAR
     ' Terminal configuration:
-    '  [baud, color, force-7bit, cursor, auto-crlf, caps-opt ]
-    '    0      1        2          3         4        5
-    long cfg[6]
+    '  [baud, color, force-7bit, cursor, auto-crlf, caps-opt, sleep ]
+    '    0      1        2          3         4        5        6
+    long cfg[eeprom#CfgSize]
 
     byte force7	'  force7 - Flag force to 7 bits
     byte autolf	'  autolf - Generate LF after CR
@@ -51,6 +51,7 @@ VAR
     byte savemins ' # minutes until blank screen
     byte color	' Text color (index)
     byte baud	' Baud rate (index)
+    byte cursor	' Cursor style
 
     ' Saved screen contents during config menu
     byte cfgScr[cfgCols*cfgRows]
@@ -74,6 +75,9 @@ PRI setConfig
     autolf := cfg[4]
     caps := cfg[5]
     kb.setCaps(caps)
+    savemins := cfg[6]
+    if savemins < 1
+	savemins := 1
 
     ' Decode to baud and set serial ports
     baud := cfg[0]
@@ -87,7 +91,10 @@ PRI setConfig
     if (color < 0) OR (color > 10)
 	color := 6
     text.setColor(colorBits[color])
-    text.setCursor(cfg[3])
+    cursor := cfg[3]
+    if cursor > 8
+	cursor := 0
+    text.setCursor(cursor)
 
 '' Process bytes from our host port
 PRI doSerial0 | c, oldpos
@@ -455,7 +462,7 @@ PRI puts(row, col, str) | x, ptr
 PRI cfgPaint | x
     text.fillBox(0, 0, cfgRows, cfgCols, " ")
     puts(0, 0, @cfgHead)
-    repeat x from 1 to 9
+    repeat x from 1 to CfgRows-1
 	text.putc(x * text#cols, "|")
 	text.putc(x * text#cols + 25, "|")
     puts(1, 2, string("Configuration"))
@@ -485,26 +492,29 @@ PRI cfgPaint | x
     puts(7, 3, string("F6 - Screen save xm"))
     putn(7, 19, savemins)
 
-    puts(8, 3, string("ENTER - save config"))
-    puts(9, 3, string("Esc - done"))
-    puts(10, 0, @cfgHead)
+    puts(8, 3, string("F7 - Cursor"))
+    putn(8, 14, cursor)
+
+    puts(9, 3, string("ENTER - save config"))
+    puts(10, 3, string("Esc - done"))
+    puts(11, 0, @cfgHead)
 
 '' Decode ANSI keyboard sequence into:
-'  0 - Esc
-'   1..6 - F1-F6
-'  7 - Enter
-'  8 - Unknown
+'   0 - Unknown
+'   1..n - F1-Fn
+'  -1 - Enter
+'  -2 - Escape
 PRI cfgGetKey : val | c
     c := kb.getkey
 
     ' ENTER
     if c == 13
-	val := 7
+	val := -1
 	return
 
     ' If not ESC, it's a stray key to be ignored
     if c <> 27
-	val := 8
+	val := 0
 	return
 
     ' ESC is an escape sequence if the rest of the bytes of
@@ -512,33 +522,39 @@ PRI cfgGetKey : val | c
     c := kb.key
     if c == 0
 	' No bytes, so it's a plain typed ESC
-	val := 0
+	val := -2
 	return
 
     ' Get next byte of sequence
-    ' ESC-O[P..U] maps to F1..F6
+    ' ESC-O[P..X] maps to F1..F9
     if c == "O"
 	c := kb.key
-	if (c => "P") AND (c =< "U")
+	if (c => "P") AND (c =< "X")
 	    val := c - "O"
 	    return
 
     ' Unknown
-    val := 8
+    val := 0
 
 '' Process one keystroke for the config menu.
 '' Return 1 if config mode done, otherwise 0
 PRI cfgKey : doneflag | c
     doneflag := 0
 
-    case cfgGetKey
-     0:		' ESC - end of config mode
+    c := cfgGetKey
+    case c
+
+     -1:	' Enter - save to EEPROM
+	eeprom.writeCfg(@cfg)
+
+     -2:	' ESC - end of config mode
 	doneflag := 1
 
      1:		' F1 - cycle baud rates
 	baud += 1
 	if baud > 8
 	    baud := 0
+	cfg[0] := baud
 	ser0.stop
 	ser0.start(r0, t0, 0, baudBits[baud])
 
@@ -546,27 +562,37 @@ PRI cfgKey : doneflag | c
 	color += 1
 	if color > 10
 	    color := 0
+	cfg[1] := color
 	text.setColor(colorBits[color])
 
      3:		' F3 - toggle masking of 8th bit
 	force7 := force7 ^ 1
+	cfg[2] := force7
 
      4:		' F4 - toggle auto add of LF
 	autolf := autolf ^ 1
+	cfg[4] := autolf
 
      5:		' F5 - cycle CAPS lock treatment
 	caps += 1
 	if caps > 2
 	    caps := 0
 	kb.setCaps(caps)
+	cfg[5] := caps
 
      6:		' F6 - cycle screen saver timeout
 	savemins *= 2
 	if savemins > 10
 	    savemins := 1
+	cfg[6] := savemins
 
-     7:		' Enter - save to EEPROM
-	eeprom.writeCfg(@cfg)
+     7:		' F7 - cycle cursor style
+	cursor += 1
+	if cursor > 8
+	    cursor := 0
+	text.setCursor(cursor)
+	cfg[3] := cursor
+
 
 '' Interact with the user to set the terminal configuration
 PRI config | ignore, oldpos

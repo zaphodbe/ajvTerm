@@ -13,6 +13,9 @@ CON
     '' Value which shows valid values are present
     CfgMagic = 56
 
+    '' Number of longs in config memory array
+    CfgSize = 7
+
 
 OBJ
   i2c:	"basic_i2c_driver"	' I2C serial bus
@@ -20,12 +23,12 @@ OBJ
 
 VAR
     byte init
-    long cfg[6]
+    long cfg[CfgSize]
 
 
 '' Read the configuration
-'' "params" points to an array of 6 words:
-''   [baud, color, force-7bit, cursor, auto-crlf, caps-opt]
+'' "params" points to an array of CfgSize words:
+''   [baud, color, force-7bit, cursor, auto-crlf, caps-opt, timeout]
 '' Return value is 1 if a config is available, 0 if not.
 PUB readCfg(params) : res2 | loc, x
     '' One-time setup for I2C access
@@ -43,12 +46,12 @@ PUB readCfg(params) : res2 | loc, x
     '' There is.  Get the config values.  They are read into a
     ''  sequence of memory locations which mirrors how they
     ''  will lie in the array "params".
-    repeat x from 0 to 5
+    repeat x from 0 to CfgSize-1
 	loc += 4
 	cfg[x] := i2c.ReadLong(i2cSCL, EEPROMAddr, loc)
 
     '' Success; move result to caller's memory and return success
-    longmove(params, @cfg, 6)
+    longmove(params, @cfg, CfgSize)
     res2 := 1
     waitcnt(clkfreq/200 + cnt)
 
@@ -56,10 +59,10 @@ PUB readCfg(params) : res2 | loc, x
 '' ("params" is as above.)
 '' This routine assumes a readCfg() will always precede this write
 PUB writeCfg(params) | loc, x
-    longmove(@cfg, @params, 6)
+    longmove(@cfg, @params, CfgSize)
     loc := EEPROM_Base
     i2c.WriteLong(i2cSCL, EEPROMAddr, loc, CfgMagic)
-    repeat x from 0 to 5
+    repeat x from 0 to CfgSize-1
 	loc += 4
 	i2c.WriteLong(i2cSCL, EEPROMAddr, loc, params[x])
     waitcnt(clkfreq/200 + cnt)

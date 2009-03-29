@@ -25,7 +25,8 @@ VAR
     byte numLock	'  ...num lock held
     byte alt		'  ...ALT key
     byte isE0, isF0	'  Extended key sequence prefixes received
-    byte capsOpt	' Make caps lock another control key
+    byte capsOpt	' Handling of caps lock key:
+    			'  0 = normal, 1 = another ctl, 2 = swap w. ctl
 
 '' Start keyboard driver - starts a cog
 '' returns false if no cog available
@@ -173,15 +174,20 @@ PRI shift_key(c) : processed | kval
      $59:
 	shiftR := kval
      $14:
-	ctl := kval
+	if capsOpt == 2
+	    if isF0
+		capsLock := capsLock ^ 1
+	else
+	    ctl := kval
      $11:
 	alt := kval
      $58:
-	if capsOpt
-	    ctl := kval
-	else
+	if capsOpt == 0
 	    if isF0
 		capsLock := capsLock ^ 1
+	else
+	    ctl := kval
+	    
      OTHER:
 	processed := 0
 
@@ -190,14 +196,18 @@ PRI procRX2(c)
     if shift_key(c)
 	return
 
-    ' Ignore unmappable chars, and key releases
-    if isF0 OR (c => $80)
+    ' Ignore key releases
+    if isF0
 	return
 
     if cursor_key(c)
 	return
 
     if fnkey(c)
+	return
+
+    ' Ignore unmappable chars
+    if c => $80
 	return
 
     procRX3(c)

@@ -57,7 +57,7 @@ PRI enq(c)
 
 '' Process an actual keyboard data character.
 ' Things like shift key changes don't reach here.
-PRI procRX3(c) | sh
+PRI procRX3(ch) | sh, c
     ' Drop char if no room in FIFO
     if nkey == 16
 	return
@@ -66,18 +66,16 @@ PRI procRX3(c) | sh
     sh := shiftL | shiftR
 
     ' Map using base map
-    c := tab[c]
+    c := tab[ch]
 
     ' Use shifted tabs[] if:
     '	- CAPS lock and shift not held for an alphabetic key
     '	- No CAPS lock, and shift held
-    if capsLock ^ sh
-	if (c => "a") AND (c =< "z")
-	    if sh == 0
-		c := tabs[c]
-    else
-	if sh
-	     c:= tabs[c]
+    if capsLock
+	if (sh == 0) AND ((c => "a") AND (c =< "z"))
+	    c := tabs[ch]
+    elseif sh
+	 c:= tabs[ch]
 
     ' Key with no action
     if c == 0

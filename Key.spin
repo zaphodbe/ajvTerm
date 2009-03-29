@@ -25,6 +25,7 @@ VAR
     byte numLock	'  ...num lock held
     byte alt		'  ...ALT key
     byte isE0, isF0	'  Extended key sequence prefixes received
+    byte capsOpt	' Make caps lock another control key
 
 '' Start keyboard driver - starts a cog
 '' returns false if no cog available
@@ -46,6 +47,10 @@ PUB start(dp, cp) : okay
 PUB stop
     if cog1
 	cogstop(cog1~ -  1)
+
+'' Set treatment of caps lock key
+PUB setCaps(arg)
+    capsOpt := arg
 
 '' Add a char to the FIFO
 PRI enq(c)
@@ -172,8 +177,11 @@ PRI shift_key(c) : processed | kval
      $11:
 	alt := kval
      $58:
-	if isF0
-	    capsLock := capsLock ^ 1
+	if capsOpt
+	    ctl := kval
+	else
+	    if isF0
+		capsLock := capsLock ^ 1
      OTHER:
 	processed := 0
 

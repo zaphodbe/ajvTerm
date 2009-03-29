@@ -389,6 +389,7 @@ PUB init
 
     ' Start Keyboard Driver
     kb.start(kbd, kbc)
+    kb.setCaps(1)
 
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config

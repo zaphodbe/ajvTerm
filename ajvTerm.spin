@@ -408,8 +408,6 @@ PUB doKey | key, ctl
     key := kb.key
     if key == 0
 	return
-    prn(key)
-    return
 
     ' Pick off flags
     ctl := 0

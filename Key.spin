@@ -24,7 +24,7 @@ VAR
     byte capsLock	'  ...CAPS lock held
     byte numLock	'  ...num lock held
     byte alt		'  ...ALT key
-    byte isE0		'  Extended key sequence prefix received
+    byte isE0, isF0	'  Extended key sequence prefixes received
 
 '' Start keyboard driver - starts a cog
 '' returns false if no cog available
@@ -66,21 +66,21 @@ PRI procRX3(c) | sh
     sh := shiftL | shiftR
 
     ' Map using base map
-    c := kmap1[c]
+    c := tab[c]
 
-    ' Use shifted kmap2[] if:
+    ' Use shifted tabs[] if:
     '	- CAPS lock and shift not held for an alphabetic key
     '	- No CAPS lock, and shift held
     if capsLock ^ sh
 	if (c => "a") AND (c =< "z")
 	    if sh == 0
-		c := kmap2[c]
+		c := tabs[c]
     else
 	if sh
-	     c:= kmap2[c]
+	     c:= tabs[c]
 
-    ' Arrow keys TBD
-    if c == $80
+    ' Key with no action
+    if c == 0
 	return
 
     ' Map control chars
@@ -100,29 +100,29 @@ PRI escstr(s) | xx
 PRI fnkey(c) : processed | s
     processed := 1
     case c
-     59:	' F1
+     $5:	' F1
 	s := string("OP")
-     60:	' F2
+     $6:	' F2
 	s := string("OQ")
-     61:	' F3
+     $4:	' F3
 	s := string("OR")
-     62:	' F4
+     $C:	' F4
 	s := string("OS")
-     63:	' F5
+     $3:	' F5
 	s := string("OT")
-     64:	' F6
+     $B:	' F6
 	s := string("OU")
-     65:	' F7
+     $83:	' F7
 	s := string("OV")
-     66:	' F8
+     $A:	' F8
 	s := string("OW")
-     67:	' F9
+     $1:	' F9
 	s := string("OX")
-     68:	' F10
+     $9:	' F10
 	s := string("[21~")
-     87:	' F11
+     $78:	' F11
 	s := string("[23~")
-     88:	' F12
+     $7:	' F12
 	s := string("[24~")
      OTHER:
 	processed := 0
@@ -133,25 +133,25 @@ PRI fnkey(c) : processed | s
 PRI cursor_key(c) : processed | s
     processed := 1
     case c
-     72:	' Up
+     $75:	' Up
 	s := string("OA")
-     80:	' Down
+     $72:	' Down
 	s := string("OB")
-     77:	' Right
+     $74:	' Right
 	s := string("OC")
-     75:	' Left
+     $6B:	' Left
 	s := string("OD")
-     73:	' Page Up
+     $75:	' Page Up
 	s := string("[5~")
-     81:	' Page Down
+     $72:	' Page Down
 	s := string("[6~")
-     82:	' Insert
+     $70:	' Insert
 	s := string("[2~")
-     83:	' Delete
+     $71:	' Delete
 	s := string("[3~")
-     71:	' Home
+     $6C:	' Home
 	s := string("OH")
-     79:	' End
+     $69:	' End
 	s := string("OF")
      OTHER:
 	processed := 0
@@ -161,34 +161,21 @@ PRI cursor_key(c) : processed | s
     escstr(s)
 
 '' Handle shift keys
-PRI shift_key(c) : processed
+PRI shift_key(c) : processed | kval
     processed := 1
+    kval := 1-isF0
     case c
-     $36:
-	shiftL := 1
-     $2A:
-	shiftR := 1
-     $B6:
-	shiftL := 0
-     $AA:
-	shiftR := 0
-     $E0:
-	isE0 := 1
-     $1D:
-	ctl := 1
-     $9D:
-	ctl := 0
-     $38:
-	alt := 1
-     $B8:
-	alt := 1
-     $3A:
-     $45:
-	' Ignore cap/num key down; they might repeat
-     $BA:
-	capsLock := capsLock ^ 1
-     $C5:
-	numLock := numLock ^ 1
+     $12:
+	shiftL := kval
+     $59:
+	shiftR := kval
+     $14:
+	ctl := kval
+     $11:
+	alt := kval
+     $58:
+	if isF0
+	    capsLock := capsLock ^ 1
      OTHER:
 	processed := 0
 
@@ -196,12 +183,17 @@ PRI shift_key(c) : processed
 PRI procRX2(c)
     if shift_key(c)
 	return
-    if c => $80
+
+    ' Ignore unmappable chars, and key releases
+    if isF0 OR (c => $80)
 	return
+
     if cursor_key(c)
 	return
+
     if fnkey(c)
 	return
+
     procRX3(c)
 
 '' Process any pending scancode bytes from the low level keyboard
@@ -216,10 +208,18 @@ PRI procRX | c
 	' Take next char and process
 	rx[tail++] := 0
 	tail &= $F
-	procRX2(c)
 
-	' Record when we encounter a E0 prefix
-	isE0 := (c == $E0)
+	' Note prefixes
+	if c == $E0
+	    isE0 := 1
+	elseif c == $F0
+	    isF0 := 1
+	else
+	    ' Process actual data byte
+	    procRX2(c)
+
+	    ' And clear prefixes
+	    isE0 := isF0 := 0
 
 '' Get key (never waits)
 '' returns key (0 if buffer empty)
@@ -433,25 +433,43 @@ nap_ret			ret
 dlsb			long	1 << 9
 tenms			long	10_000 / 4
 
-'
-' Mapping from scan code to ASCII key value
-'
-kmap1	byte 0,27,"1234567890-=",8,9
-	byte "qwertyuiop[]",13,$80
-	byte "asdfghjkl;'`",$80
-	byte "\\zxcvbnm,./",$80
-	byte '*',$80,' ',$80,$80,$80,$80,$80,$80,$80,$80,$80
-	byte $80,$80,$80,$80,$80,$80,$80,$80,$80,$80,$80,$80
-	byte $80,$80,$80,"0",$7F
+'' Base table, mapping scancodes to chars
+tab	byte	0, 0, 0, 0, 0, 0, 0, 0		' 0
+	byte	0, 0, 0, 0, 0, 9, "`", 0	' 8
+	byte	0, 0, 0, 0, 0, "q", "1", 0	' 16
+	byte	0, 0, "zsaw2", 0		' 24
+	byte	0, "cxde43", 0			' 32
+	byte	0, " vftr5", 0			' 40
+	byte	0, "nbhgy6", 0			' 48
+	byte	0, 0, "mju78", 0		' 56
+	byte	0, ",kio09", 0			' 64
+	byte	0, "./l;p-", 0, 0		' 72
+	byte	0, 39, 0, "[=", 0, 0, 0		' 80
+	byte	0, 13, "]", 0, 92, 0, 0, 0	' 88
+	byte	0, 0, 0, 0, 0, 8, 0, 0		' 96
+	byte	0, 0, 0, 0, 0, 0, 0, 0		' 104
+	byte	0, 0, 0, 0,			' 108
+	byte	0, 27, 0, 0			' 112
+	byte	"+3-*9", 0, 0			' 120
 
-kmap2	byte 0,27,"!@#$%^&*()_+",8,9
-	byte "QWERTYUIOP{}",13,$80
-	byte "ASDFGHJKL:",34,"~",$80
-	byte "|ZXCVBNM<>?",$80
-	byte "*",$80," ",$80,$80,$80,$80,$80,$80,$80,$80,$80
-	byte $80,$80,$80,$80,"789",$80,"456",$80
-	byte '1230',$7F
-
+'' Mapping of scancodes when shift is held
+tabs	byte	0, 0, 0, 0, 0, 0, 0, 0		' 0
+	byte	0, 0, 0, 0, 0, 9, "~", 0	' 8
+	byte	0, 0, 0, 0, 0, "Q", "!", 0	' 16
+	byte	0, 0, "ZSAW@", 0		' 24
+	byte	0, "CXDE$#", 0			' 32
+	byte	0, " VFTR%", 0			' 40
+	byte	0, "NBHGY^", 0			' 48
+	byte	0, 0, "MJU&*", 0		' 56
+	byte	0, "<KIO)(", 0			' 64
+	byte	0, ">?L:P_", 0, 0		' 72
+	byte	0, 34, 0, "{+", 0, 0, 0		' 80
+	byte	0, 13, "}", 0, "|", 0, 0, 0	' 88
+	byte	0, 0, 0, 0, 0, 0, 8, 0		' 96
+	byte	0, 0, 0, 0, 0, 0, 0, 0		' 104
+	byte	0, 0, 0, 0,			' 108
+	byte	0, 0, 27, 0			' 112
+	byte	0, "+3-*9", 0, 0		' 120
 '
 ' Uninitialized data
 '

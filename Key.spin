@@ -139,9 +139,9 @@ PRI cursor_key(c) : processed | s
 	s := string("OC")
      $6B:	' Left
 	s := string("OD")
-     $75:	' Page Up
+     $7D:	' Page Up
 	s := string("[5~")
-     $72:	' Page Down
+     $7A:	' Page Down
 	s := string("[6~")
      $70:	' Insert
 	s := string("[2~")

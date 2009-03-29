@@ -212,7 +212,7 @@ PRI procRX | c
     '  own cog, puts (non-zero) bytes into slots in rx[] as they are
     '  presented by the keyboard.  It knows that we have consumed a
     '  slot when we set the slot's position back to zero.
-    while (c := rx[tail])
+    repeat while (c := rx[tail])
 	' Take next char and process
 	rx[tail++] := 0
 	tail &= $F

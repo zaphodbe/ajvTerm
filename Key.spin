@@ -256,7 +256,11 @@ PUB newkey : c
 '' Check if any key in buffer
 '' returns t|f
 PUB gotkey : truefalse
-    truefalse := nkey > 0
+    truefalse := nkey
+
+'' Tell if the control key is currently held down
+PUB checkCtl : truefalse
+    truefalse := ctl
 
 DAT
 

@@ -142,3 +142,26 @@ PUB putc(pos, c)
     if inverse
 	c |= $80
     screen[pos] := c
+
+'' Write a box of screen memory to the caller's buffer
+PUB saveBox(dest, row, col, nrow, ncol) | x, ptr
+    ptr := @screen + row*cols + col
+    repeat x from 0 to nrow-1
+	bytemove(dest, ptr, ncol)
+	dest += ncol
+	ptr += cols
+
+'' Read a box of screen memory from the caller's buffer
+PUB restoreBox(src, row, col, nrow, ncol) | x, ptr
+    ptr := @screen + row*cols + col
+    repeat x from 0 to nrow-1
+	bytemove(ptr, src, ncol)
+	src += ncol
+	ptr += cols
+
+'' Fill a box of screen memory with this value
+PUB fillBox(row, col, nrow, ncol, val) | x, ptr
+    ptr := @screen + row*cols + col
+    repeat x from 0 to nrow-1
+	bytefill(ptr, val, ncol)
+	ptr += cols

@@ -22,6 +22,10 @@ CON
     kbd = 26
     kbc = 27
 
+    '' Geometry for config screen area
+    cfgCols = 26
+    cfgRows = 11
+
 
 OBJ
     text: "VGA_1024"		' VGA Terminal Driver
@@ -44,6 +48,9 @@ VAR
     byte onlast	' Flag that we've just put a char on last column
     word pos	' Current output/cursor position
 
+    ' Saved screen contents during config menu
+    byte cfgScr[cfgCols*cfgRows]
+
 
 PUB main
 
@@ -57,7 +64,7 @@ PUB main
 	doSerial0
 
 '' Apply the currently recorded config
-PUB setConfig | baud, color
+PRI setConfig | baud, color
     ' Extract "hot" ones into global vars
     ' pcport := cfg[2]
     force7 := cfg[3]
@@ -83,7 +90,7 @@ PUB setConfig | baud, color
     text.setCursor(cfg[4])
 
 '' Process bytes from our host port
-PUB doSerial0 | c, oldpos
+PRI doSerial0 | c, oldpos
     oldpos := pos
 
     ' Consume bytes until FIFO is empty
@@ -104,14 +111,14 @@ PUB doSerial0 | c, oldpos
 	singleSerial0(c)
 
 '' Set invert video based on control code
-PUB setInv(c)
+PRI setInv(c)
     if c == 1
 	text.setInv(1)
     else
 	text.setInv(0)
 
 '' Take action for ANSI-style sequence
-PUB ansi(c) | x, defVal
+PRI ansi(c) | x, defVal
 
     ' Always reset input state machine at end of sequence
     state := 0
@@ -217,7 +224,7 @@ PUB ansi(c) | x, defVal
 	    text.delChar(pos)
 
 '' Process next byte from our host port
-PUB singleSerial0(c)
+PRI singleSerial0(c)
     case state
 
     ' State 0: ready for new data to display or start of escape sequence
@@ -371,7 +378,7 @@ PUB singleSerial0(c)
     return
 
 '' One-time initialization of terminal driver state
-PUB init
+PRI init
     ' Try to read EEPROM config
     if eeprom.readCfg(@cfg) == 0
 	' Set default config: 9600 baud, don't force ASCII
@@ -404,52 +411,21 @@ PUB init
     pos := 0
 
 '' Read and dispatch a keystroke
-PUB doKey | key, ctl
+PRI doKey | key, ctl
     ' Get actual keystroke from driver
     key := kb.key
     if key == 0
 	return
 
-    ' Pick off flags
-    ctl := 0
-    if key & $200
-	ctl := 1
-    key &= $FF
+    ' See if it's a request for config mode
+    '  (ESC with the control key down)
+    if key == 27
+	if kb.checkCtl
+	    config
+	    return
 
-    ' up/down/right/left arrow keys
-    if key == 194
-	ser0.str(string(27,"[A"))
-	return
-    if key == 195
-	ser0.str(string(27,"[B"))
-	return
-    if key == 193
-	ser0.str(string(27,"[C"))
-	return
-    if key == 192
-	ser0.str(string(27,"[D"))
-	return
-
-    ' Printing char?
-    if (key => 0) AND (key =< $7F)
-
-	' Turn A..Z into ^A..^Z
-	if ctl
-	    key &= $1F
-
-	' Emit the character
-	ser0.tx(key)
-	return
-
-    ' Map keyboard driver ESC to ASCII value
-    if key == $CB
-	ser0.tx(27)
-	return
-
-    ' Map keyboard backspace
-    if key == $C8
-	ser0.tx(8)
-	return
+    ' Emit the character
+    ser0.tx(key)
 
 '' Display a number on the screen
 '  (NB, doesn't deal with scrolling.)
@@ -459,13 +435,43 @@ PRI prn2(val) | dig
     if val > 0
 	prn2(val)
     text.putc(pos++, dig)
-PUB prn(val)
+PRI prn(val)
     text.putc(pos++, " ")
     if val < 0
 	text.putc(pos++, "-")
 	val := 0 - val
     prn2(val)
 
+'' Write a string into the screen
+PRI puts(row, col, str) | x, ptr
+    ptr := (row * text#cols) + col
+    repeat x from 0 to STRSIZE(str)-1
+	text.putc(ptr++, BYTE[str+x])
+
+'' Write current config to screen
+PRI cfgPaint | x
+    puts(0, 0, cfgHead)
+    repeat x from 1 to 9
+	text.putc(0, "|")
+	text.putc(25, "|")
+    puts(1, 2, string("Configuration"))
+    puts(2, 3, string("F1 - Baud"))
+    puts(3, 3, string("F2 - Color"))
+    puts(4, 3, string("F3 -"))
+    puts(5, 3, string("F4 - auto CR"))
+    puts(6, 3, string("F5 - CAPS =="))
+    puts(7, 3, string("F6 - Scren save"))
+    puts(8, 3, string("ENTER - save config"))
+    puts(9, 3, string("Esc - done"))
+    puts(10, 0, cfgHead)
+
+'' Interact with the user to set the terminal configuration
+PRI config | ignore
+    text.saveBox(@cfgScr, 0, 0, cfgCols, cfgRows)
+    text.fillBox(0, 0, cfgRows, cfgCols, " ")
+    cfgPaint
+    ignore := kb.getkey
+    text.restoreBox(@cfgScr, 0, 0, cfgCols, cfgRows)
 
 DAT
     '' Convert baud rate index into actual bit rate
@@ -481,3 +487,6 @@ DAT
     '               6       7      8     9        10
     '             WHITE, HOTPINK, GOLD, PINK, AMBERDARK
               byte $FF,    $C9,   $D9,  $C5,     $A5
+
+    '' Config header
+    cfgHead byte "+========================+", 0

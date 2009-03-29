@@ -138,13 +138,6 @@ PUB tx(txbyte)
     rx
 
 
-PUB str(stringptr)
-
-'' Send string
-
-  repeat strsize(stringptr)
-    tx(byte[stringptr++])
-
 PUB dec(value) | i
 
 '' Print a decimal number

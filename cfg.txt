@@ -1,0 +1,15 @@
+0 +========================+
+1 | Configuration          |
+2 |  F1 - Baud 9600        |    Options:
+3 |  F2 - Color            |
+4 |  F3 - 7 bit            |	8 bit
+5 |  F4 - auto CR          |	auto CR off
+6 |  F5 - CAPS == swap Ctl |	== normal, == swap Ctl
+7 |  F6 - Screen save 1m   |	2/4/8
+8 | ENTER - save NVRAM     |
+9 | Esc - end config       |
+10+========================+
+  01234567890123456789012345
+
+ 9 rows
+26 cols

@@ -450,10 +450,11 @@ PRI puts(row, col, str) | x, ptr
 
 '' Write current config to screen
 PRI cfgPaint | x
-    puts(0, 0, cfgHead)
+    text.setCursorPos(0)
+    puts(0, 0, @cfgHead)
     repeat x from 1 to 9
-	text.putc(0, "|")
-	text.putc(25, "|")
+	text.putc(x * text#cols, "|")
+	text.putc(x * text#cols + 25, "|")
     puts(1, 2, string("Configuration"))
     puts(2, 3, string("F1 - Baud"))
     puts(3, 3, string("F2 - Color"))
@@ -463,15 +464,17 @@ PRI cfgPaint | x
     puts(7, 3, string("F6 - Scren save"))
     puts(8, 3, string("ENTER - save config"))
     puts(9, 3, string("Esc - done"))
-    puts(10, 0, cfgHead)
+    puts(10, 0, @cfgHead)
 
 '' Interact with the user to set the terminal configuration
 PRI config | ignore
-    text.saveBox(@cfgScr, 0, 0, cfgCols, cfgRows)
+    text.setCursorPos(0)
+    text.saveBox(@cfgScr, 0, 0, cfgRows, cfgCols)
     text.fillBox(0, 0, cfgRows, cfgCols, " ")
     cfgPaint
     ignore := kb.getkey
-    text.restoreBox(@cfgScr, 0, 0, cfgCols, cfgRows)
+    text.restoreBox(@cfgScr, 0, 0, cfgRows, cfgCols)
+    text.setCursorPos(pos)
 
 DAT
     '' Convert baud rate index into actual bit rate

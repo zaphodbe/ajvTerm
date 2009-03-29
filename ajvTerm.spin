@@ -408,6 +408,8 @@ PUB doKey | key, ctl
     key := kb.key
     if key == 0
 	return
+    prn(key)
+    return
 
     ' Pick off flags
     ctl := 0
@@ -452,16 +454,18 @@ PUB doKey | key, ctl
 
 '' Display a number on the screen
 '  (NB, doesn't deal with scrolling.)
-PUB prn(val) | dig
-    if val < 0
-	text.putc(pos++, "-")
-	prn(0 - val)
-	return
+PRI prn2(val) | dig
     dig := 48 + (val // 10)
     val := val/10
     if val > 0
-	prn(val)
+	prn2(val)
     text.putc(pos++, dig)
+PUB prn(val)
+    text.putc(pos++, " ")
+    if val < 0
+	text.putc(pos++, "-")
+	val := 0 - val
+    prn2(val)
 
 
 DAT

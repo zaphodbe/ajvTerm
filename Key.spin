@@ -314,6 +314,7 @@ loop			call	#receive
 '
 			' Point to next position in rx[] to be used
 			mov	x,par
+			add	x,#8
 			add	x,_head
 			rdbyte	y,x
 

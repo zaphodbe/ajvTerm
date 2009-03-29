@@ -101,29 +101,29 @@ PRI fnkey(c) : processed | s
     processed := 1
     case c
      59:	' F1
-	s := "OP"
+	s := string("OP")
      60:	' F2
-	s := "OQ"
+	s := string("OQ")
      61:	' F3
-	s := "OR"
+	s := string("OR")
      62:	' F4
-	s := "OS"
+	s := string("OS")
      63:	' F5
-	s := "OT"
+	s := string("OT")
      64:	' F6
-	s := "OU"
+	s := string("OU")
      65:	' F7
-	s := "OV"
+	s := string("OV")
      66:	' F8
-	s := "OW"
+	s := string("OW")
      67:	' F9
-	s := "OX"
+	s := string("OX")
      68:	' F10
-	s := "[21~"
+	s := string("[21~")
      87:	' F11
-	s := "[23~"
+	s := string("[23~")
      88:	' F12
-	s := "[24~"
+	s := string("[24~")
      OTHER:
 	processed := 0
 	return
@@ -134,25 +134,25 @@ PRI cursor_key(c) : processed | s
     processed := 1
     case c
      72:	' Up
-	s := "OA"
+	s := string("OA")
      80:	' Down
-	s := "OB"
+	s := string("OB")
      77:	' Right
-	s := "OC"
+	s := string("OC")
      75:	' Left
-	s := "OD"
+	s := string("OD")
      73:	' Page Up
-	s := "[5~"
+	s := string("[5~")
      81:	' Page Down
-	s := "[6~"
+	s := string("[6~")
      82:	' Insert
-	s := "[2~"
+	s := string("[2~")
      83:	' Delete
-	s := "[3~"
+	s := string("[3~")
      71:	' Home
-	s := "OH"
+	s := string("OH")
      79:	' End
-	s := "OF"
+	s := string("OF")
      OTHER:
 	processed := 0
 	return

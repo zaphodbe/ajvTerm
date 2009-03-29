@@ -153,7 +153,7 @@ PRI cursor_key(c) : processed | s
 	s := "OH"
      79:	' End
 	s := "OF"
-    OTHER:
+     OTHER:
 	processed := 0
 	return
 
@@ -179,9 +179,9 @@ PRI shift_key(c) : processed
      $9D:
 	ctl := 0
      $38:
-	atl := 1
+	alt := 1
      $B8:
-	atl := 1
+	alt := 1
      $3A:
      $45:
 	' Ignore cap/num key down; they might repeat

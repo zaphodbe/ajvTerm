@@ -47,6 +47,10 @@ VAR
     long a1	'   ...arg 1
     byte onlast	' Flag that we've just put a char on last column
     word pos	' Current output/cursor position
+    byte caps	' Options for treatment of CAPS lock
+    byte savemins ' # minutes until blank screen
+    byte color	' Text color
+    long baud	' Baud rate
 
     ' Saved screen contents during config menu
     byte cfgScr[cfgCols*cfgRows]
@@ -64,7 +68,7 @@ PUB main
 	doSerial0
 
 '' Apply the currently recorded config
-PRI setConfig | baud, color
+PRI setConfig
     ' Extract "hot" ones into global vars
     ' pcport := cfg[2]
     force7 := cfg[3]
@@ -84,9 +88,7 @@ PRI setConfig | baud, color
     color := cfg[1]
     if (color < 0) OR (color > 10)
 	color := 6
-    else
-	color := colorBits[color]
-    text.setColor(color)
+    text.setColor(colorBits[color])
     text.setCursor(cfg[4])
 
 '' Process bytes from our host port
@@ -441,6 +443,9 @@ PRI prn(val)
 	text.putc(pos++, "-")
 	val := 0 - val
     prn2(val)
+PRI putn(r, c, val)
+    pos := r * text#cols + c
+    prn(val)
 
 '' Write a string into the screen
 PRI puts(row, col, str) | x, ptr
@@ -450,30 +455,51 @@ PRI puts(row, col, str) | x, ptr
 
 '' Write current config to screen
 PRI cfgPaint | x
-    text.setCursorPos(0)
+    text.fillBox(0, 0, cfgRows, cfgCols, " ")
     puts(0, 0, @cfgHead)
     repeat x from 1 to 9
 	text.putc(x * text#cols, "|")
 	text.putc(x * text#cols + 25, "|")
     puts(1, 2, string("Configuration"))
+
     puts(2, 3, string("F1 - Baud"))
+    putn(2, 12, baud)
+
     puts(3, 3, string("F2 - Color"))
-    puts(4, 3, string("F3 -"))
-    puts(5, 3, string("F4 - auto CR"))
+    putn(3, 13, color)
+
+    puts(4, 3, string("F3 - 8 bit"))
+    if force7
+	puts(4, 8, string("7"))
+
+    puts(5, 3, string("F4 - auto LF"))
+    if not autolf
+	puts(5, 16, string("off"))
+
     puts(6, 3, string("F5 - CAPS =="))
-    puts(7, 3, string("F6 - Scren save"))
+    if caps == 0
+	puts(6, 16, string("normal"))
+    elseif caps == 1
+	puts(6, 16, string("ctl"))
+    else
+	puts(6, 16, string("swap Ctl"))
+
+    puts(7, 3, string("F6 - Screen save xm"))
+    putn(7, 19, savemins)
+
     puts(8, 3, string("ENTER - save config"))
     puts(9, 3, string("Esc - done"))
     puts(10, 0, @cfgHead)
 
 '' Interact with the user to set the terminal configuration
-PRI config | ignore
+PRI config | ignore, oldpos
+    oldpos := pos
     text.setCursorPos(0)
     text.saveBox(@cfgScr, 0, 0, cfgRows, cfgCols)
-    text.fillBox(0, 0, cfgRows, cfgCols, " ")
     cfgPaint
     ignore := kb.getkey
     text.restoreBox(@cfgScr, 0, 0, cfgRows, cfgCols)
+    pos := oldpos
     text.setCursorPos(pos)
 
 DAT

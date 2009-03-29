@@ -36,8 +36,8 @@ OBJ
 
 VAR
     ' Terminal configuration:
-    '  [baud, color, pc-port, force-7bit, cursor, auto-crlf]
-    '    0      1      2          3         4        5
+    '  [baud, color, force-7bit, cursor, auto-crlf, caps-opt ]
+    '    0      1        2          3         4        5
     long cfg[6]
 
     byte force7	'  force7 - Flag force to 7 bits
@@ -49,8 +49,8 @@ VAR
     word pos	' Current output/cursor position
     byte caps	' Options for treatment of CAPS lock
     byte savemins ' # minutes until blank screen
-    byte color	' Text color
-    long baud	' Baud rate
+    byte color	' Text color (index)
+    byte baud	' Baud rate (index)
 
     ' Saved screen contents during config menu
     byte cfgScr[cfgCols*cfgRows]
@@ -70,26 +70,24 @@ PUB main
 '' Apply the currently recorded config
 PRI setConfig
     ' Extract "hot" ones into global vars
-    ' pcport := cfg[2]
-    force7 := cfg[3]
-    autolf := cfg[5]
+    force7 := cfg[2]
+    autolf := cfg[4]
+    caps := cfg[5]
+    kb.setCaps(caps)
 
     ' Decode to baud and set serial ports
     baud := cfg[0]
     if (baud < 0) OR (baud > 8)
-	baud := 9600
-    else
-	baud := baudBits[baud]
+	baud := 4
     ser0.stop
-    ser0.start(r0, t0, 0, 9600)
-    ' ser0.start(r0, t0, 0, baud)
+    ser0.start(r0, t0, 0, baudBits[baud])
 
     ' Set color and cursor
     color := cfg[1]
     if (color < 0) OR (color > 10)
 	color := 6
     text.setColor(colorBits[color])
-    text.setCursor(cfg[4])
+    text.setCursor(cfg[3])
 
 '' Process bytes from our host port
 PRI doSerial0 | c, oldpos
@@ -385,12 +383,13 @@ PRI init
     if eeprom.readCfg(@cfg) == 0
 	' Set default config: 9600 baud, don't force ASCII
 	'  or LF. white characters, white underscore cursor
+	'  CAPS lock with its usual function.
 	cfg[0] := 4
-	cfg[1] := 5
-	' cfg[2] := pcport := 0
-	cfg[3] := force7 := 0
-	cfg[4] := 5
-	cfg[5] := autolf := 0
+	cfg[1] := 6
+	cfg[2] := force7 := 0
+	cfg[3] := 5
+	cfg[4] := autolf := 0
+	cfg[5] := 0
 
     ' Start VGA output driver
     text.start(video)
@@ -398,7 +397,6 @@ PRI init
 
     ' Start Keyboard Driver
     kb.start(kbd, kbc)
-    kb.setCaps(1)
 
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config
@@ -463,7 +461,7 @@ PRI cfgPaint | x
     puts(1, 2, string("Configuration"))
 
     puts(2, 3, string("F1 - Baud"))
-    putn(2, 12, baud)
+    putn(2, 12, baudBits[baud])
 
     puts(3, 3, string("F2 - Color"))
     putn(3, 13, color)
@@ -491,13 +489,93 @@ PRI cfgPaint | x
     puts(9, 3, string("Esc - done"))
     puts(10, 0, @cfgHead)
 
+'' Decode ANSI keyboard sequence into:
+'  0 - Esc
+'   1..6 - F1-F6
+'  7 - Enter
+'  8 - Unknown
+PRI cfgGetKey : val | c
+    c := kb.getkey
+
+    ' ENTER
+    if c == 13
+	val := 7
+	return
+
+    ' If not ESC, it's a stray key to be ignored
+    if c <> 27
+	val := 8
+	return
+
+    ' ESC is an escape sequence if the rest of the bytes of
+    '  the sequence are already in the queue.
+    c := kb.key
+    if c == 0
+	' No bytes, so it's a plain typed ESC
+	val := 0
+	return
+
+    ' Get next byte of sequence
+    ' ESC-O[P..U] maps to F1..F6
+    if c == "O"
+	c := kb.key
+	if (c => "P") AND (c =< "U")
+	    val := c - "O"
+	    return
+
+    ' Unknown
+    val := 8
+
+'' Process one keystroke for the config menu.
+'' Return 1 if config mode done, otherwise 0
+PRI cfgKey : doneflag | c
+    doneflag := 0
+
+    case cfgGetKey
+     0:		' ESC - end of config mode
+	doneflag := 1
+
+     1:		' F1 - cycle baud rates
+	baud += 1
+	if baud > 8
+	    baud := 0
+	ser0.stop
+	ser0.start(r0, t0, 0, baudBits[baud])
+
+     2:		' F2 - cycle colors
+	color += 1
+	if color > 10
+	    color := 0
+	text.setColor(colorBits[color])
+
+     3:		' F3 - toggle masking of 8th bit
+	force7 := force7 ^ 1
+
+     4:		' F4 - toggle auto add of LF
+	autolf := autolf ^ 1
+
+     5:		' F5 - cycle CAPS lock treatment
+	caps += 1
+	if caps > 2
+	    caps := 0
+	kb.setCaps(caps)
+
+     6:		' F6 - cycle screen saver timeout
+	savemins *= 2
+	if savemins > 10
+	    savemins := 1
+
+     7:		' Enter - save to EEPROM
+	eeprom.writeCfg(@cfg)
+
 '' Interact with the user to set the terminal configuration
 PRI config | ignore, oldpos
     oldpos := pos
     text.setCursorPos(0)
     text.saveBox(@cfgScr, 0, 0, cfgRows, cfgCols)
-    cfgPaint
-    ignore := kb.getkey
+    repeat
+	cfgPaint
+    until cfgKey
     text.restoreBox(@cfgScr, 0, 0, cfgRows, cfgCols)
     pos := oldpos
     text.setCursorPos(pos)

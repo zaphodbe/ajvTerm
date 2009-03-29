@@ -202,6 +202,13 @@ PRI procRX2(c)
 
     procRX3(c)
 
+'' Get the next raw keycode, or 0 if there isn't one
+PUB rawkey : c
+    c := rx[tail]
+    if c
+	rx[tail++] := 0
+	tail &= $F
+
 '' Process any pending scancode bytes from the low level keyboard
 ''  software UART driver.  Bytes move out of rx[] and decoded ASCII
 ''  values are placed in keys[].
@@ -210,11 +217,7 @@ PRI procRX | c
     '  own cog, puts (non-zero) bytes into slots in rx[] as they are
     '  presented by the keyboard.  It knows that we have consumed a
     '  slot when we set the slot's position back to zero.
-    repeat while (c := rx[tail])
-	' Take next char and process
-	rx[tail++] := 0
-	tail &= $F
-
+    repeat while (c := rawkey)
 	' Note prefixes
 	if c == $E0
 	    isE0 := 1

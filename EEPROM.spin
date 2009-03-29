@@ -10,6 +10,9 @@ CON
     '' I2C access to EEPROM
     i2cSCL = 28
 
+    '' Value which shows valid values are present
+    CfgMagic = 56
+
 
 OBJ
   i2c:	"basic_i2c_driver"	' I2C serial bus
@@ -22,7 +25,7 @@ VAR
 
 '' Read the configuration
 '' "params" points to an array of 6 words:
-''   [baud, color, pc-port, force-7bit, cursor, auto-crlf]
+''   [baud, color, force-7bit, cursor, auto-crlf, caps-opt]
 '' Return value is 1 if a config is available, 0 if not.
 PUB readCfg(params) : res2 | loc, x
     '' One-time setup for I2C access
@@ -34,7 +37,7 @@ PUB readCfg(params) : res2 | loc, x
     loc := EEPROM_Base
     x := i2c.ReadByte(i2cSCL, EEPROMAddr, loc)
     res2 := 0
-    if x <> 55
+    if x <> CfgMagic
 	return
 
     '' There is.  Get the config values.  They are read into a
@@ -55,7 +58,7 @@ PUB readCfg(params) : res2 | loc, x
 PUB writeCfg(params) | loc, x
     longmove(@cfg, @params, 6)
     loc := EEPROM_Base
-    i2c.WriteLong(i2cSCL, EEPROMAddr, loc, 55)
+    i2c.WriteLong(i2cSCL, EEPROMAddr, loc, CfgMagic)
     repeat x from 0 to 5
 	loc += 4
 	i2c.WriteLong(i2cSCL, EEPROMAddr, loc, params[x])

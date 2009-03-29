@@ -1,10 +1,10 @@
-''***************************************
-''*  PS/2 Keyboard Driver v1.0.1	*
-''*  Author: Chip Gracey		*
-''*  Made Spin-centric by Andy Valencia *
-''*  Copyright (c) 2004 Parallax, Inc.	*
-''*  See end of file for terms of use.	*
-''***************************************
+'' ***************************************
+'' *  PS/2 Keyboard Driver v1.0.1	 *
+'' *  Author: Chip Gracey		 *
+'' *  Made Spin-centric by Andy Valencia *
+'' *  Copyright (c) 2004 Parallax, Inc.	 *
+'' *  See end of file for terms of use.	 *
+'' ***************************************
 
 VAR
     long cog1		' Cog ID (plus 1) running keyboard
@@ -44,20 +44,20 @@ PUB start(dp, cp) : okay
 
 '' Stop keyboard driver - frees a cog
 PUB stop
-    if cog
-	cogstop(cog~ -  1)
+    if cog1
+	cogstop(cog1~ -  1)
 
 '' Add a char to the FIFO
 PRI enq(c)
     if nkey == 16
 	return
-    keys[keyhd++] = c
+    keys[keyhd++] := c
     nkey += 1
     keyhd &= $F
 
 '' Process an actual keyboard data character.
 ' Things like shift key changes don't reach here.
-PRI procRX3(c)
+PRI procRX3(c) | sh
     ' Drop char if no room in FIFO
     if nkey == 16
 	return
@@ -66,18 +66,18 @@ PRI procRX3(c)
     sh := shiftL | shiftR
 
     ' Map using base map
-    c := map1[c]
+    c := kmap1[c]
 
-    ' Use shifted map2[] if:
+    ' Use shifted kmap2[] if:
     '	- CAPS lock and shift not held for an alphabetic key
     '	- No CAPS lock, and shift held
-    if capsLock XOR sh
+    if capsLock ^ sh
 	if (c => "a") AND (c =< "z")
 	    if sh == 0
-		c := map2[c]
+		c := kmap2[c]
     else
 	if sh
-	     c:= map2[c]
+	     c:= kmap2[c]
 
     ' Arrow keys TBD
     if c == $80
@@ -91,10 +91,10 @@ PRI procRX3(c)
     enq(c)
 
 '' Output an ESC, then the given string
-PRI escstr(s) | x
+PRI escstr(s) | xx
     enq(27)
-    repeat x from 0 to STRSIZE(s)
-	enq(s[x])
+    repeat xx from 0 to STRSIZE(s)
+	enq(s[xx])
 
 '' Handle FN keys
 PRI fn_key(c) : processed | s
@@ -250,7 +250,7 @@ PUB newkey : c
 '' Check if any key in buffer
 '' returns t|f
 PUB gotkey : truefalse
-    truefalse := nchar > 0
+    truefalse := nkey > 0
 
 DAT
 

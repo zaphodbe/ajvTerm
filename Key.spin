@@ -69,10 +69,10 @@ PRI procRX3(ch) | sh, c
     c := tab[ch]
 
     ' Use shifted tabs[] if:
-    '	- CAPS lock and shift not held for an alphabetic key
-    '	- No CAPS lock, and shift held
-    if capsLock
-	if (sh == 0) AND ((c => "a") AND (c =< "z"))
+    '	- CAPS lock on an alpha key, and shift not held
+    '	- Otherwise, if shift held
+    if capsLock AND ((c => "a") AND (c =< "z"))
+	if sh == 0
 	    c := tabs[ch]
     elseif sh
 	 c:= tabs[ch]
@@ -91,8 +91,8 @@ PRI procRX3(ch) | sh, c
 '' Output an ESC, then the given string
 PRI escstr(s) | xx
     enq(27)
-    repeat xx from 0 to STRSIZE(s)
-	enq(s[xx])
+    repeat xx from 0 to STRSIZE(s)-1
+	enq(BYTE[s][xx])
 
 '' Handle FN keys
 PRI fnkey(c) : processed | s

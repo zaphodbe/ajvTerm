@@ -97,7 +97,7 @@ PRI escstr(s) | xx
 	enq(s[xx])
 
 '' Handle FN keys
-PRI fn_key(c) : processed | s
+PRI fnkey(c) : processed | s
     processed := 1
     case c
      59:	' F1
@@ -200,7 +200,7 @@ PRI procRX2(c)
 	return
     if cursor_key(c)
 	return
-    if fn_key(c)
+    if fnkey(c)
 	return
     procRX3(c)
 
@@ -444,11 +444,11 @@ kmap1	byte 0,27,"1234567890-=",8,9
 	byte $80,$80,$80,"0",$7F
 
 kmap2	byte 0,27,"!@#$%^&*()_+",8,9
-	byte "QWERTYUIOP{}",13,$80,
+	byte "QWERTYUIOP{}",13,$80
 	byte "ASDFGHJKL:",34,"~",$80
 	byte "|ZXCVBNM<>?",$80
 	byte "*",$80," ",$80,$80,$80,$80,$80,$80,$80,$80,$80
-	byte $80,$80,$80,$80,'789',$80,'456',$80
+	byte $80,$80,$80,$80,"789",$80,"456",$80
 	byte '1230',$7F
 
 '

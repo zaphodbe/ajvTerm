@@ -18,10 +18,14 @@ CON
     r0 = 25
     t0 = 24
 
+    '' Keyboard clock and data
+    kbd = 26
+    kbc = 27
+
 
 OBJ
     text: "VGA_1024"		' VGA Terminal Driver
-    kb:	"Keyboard"		' Keyboard driver
+    kb:	"Key"			' Keyboard driver
     ser0: "FullDuplexSerial256"	' Full Duplex Serial Controller(s)
     eeprom: "EEPROM"		' EEPROM access
 
@@ -384,7 +388,7 @@ PUB init
     text.cls
 
     ' Start Keyboard Driver
-    kb.startx(26, 27, NUM, RepeatRate)
+    kb.start(kbd, kbc)
 
     ' Initialize RS-232 ports.  We'll shortly be restarting them
     '  after we choose a config

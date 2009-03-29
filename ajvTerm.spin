@@ -93,7 +93,7 @@ PRI setConfig
     text.setColor(colorBits[color])
     cursor := cfg[3]
     if cursor > 8
-	cursor := 0
+	cursor := 5
     text.setCursor(cursor)
 
 '' Process bytes from our host port
@@ -387,6 +387,7 @@ PRI singleSerial0(c)
 '' One-time initialization of terminal driver state
 PRI init
     ' Try to read EEPROM config
+    eeprom.initialize
     if eeprom.readCfg(@cfg) == 0
 	' Set default config: 9600 baud, don't force ASCII
 	'  or LF. white characters, white underscore cursor
@@ -396,7 +397,8 @@ PRI init
 	cfg[2] := force7 := 0
 	cfg[3] := 5
 	cfg[4] := autolf := 0
-	cfg[5] := 0
+	cfg[5] := caps := 0
+	cfg[6] := savemins := 2
 
     ' Start VGA output driver
     text.start(video)

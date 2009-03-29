@@ -22,23 +22,22 @@ OBJ
 
 
 VAR
-    byte init
     long cfg[CfgSize]
 
+
+'' One time setup
+PUB initialize
+    i2c.Initialize(i2cSCL)
 
 '' Read the configuration
 '' "params" points to an array of CfgSize words:
 ''   [baud, color, force-7bit, cursor, auto-crlf, caps-opt, timeout]
 '' Return value is 1 if a config is available, 0 if not.
 PUB readCfg(params) : res2 | loc, x
-    '' One-time setup for I2C access
-    if init == 0
-	i2c.Initialize(i2cSCL)
-	init := 1
 
     '' Start at base of config, see if there's a config
     loc := EEPROM_Base
-    x := i2c.ReadByte(i2cSCL, EEPROMAddr, loc)
+    x := i2c.ReadLong(i2cSCL, EEPROMAddr, loc)
     res2 := 0
     if x <> CfgMagic
 	return
@@ -59,7 +58,7 @@ PUB readCfg(params) : res2 | loc, x
 '' ("params" is as above.)
 '' This routine assumes a readCfg() will always precede this write
 PUB writeCfg(params) | loc, x
-    longmove(@cfg, @params, CfgSize)
+    longmove(@cfg, params, CfgSize)
     loc := EEPROM_Base
     i2c.WriteLong(i2cSCL, EEPROMAddr, loc, CfgMagic)
     repeat x from 0 to CfgSize-1

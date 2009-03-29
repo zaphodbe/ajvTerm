@@ -1,7 +1,8 @@
 # Spin source to compile
 TOPSRC=ajvTerm.spin
 SRCS=Basic_I2C_Driver.spin FullDuplexSerial256.spin \
-    Key.spin VGA_1024.spin VGA_HiRes_Text.spin
+    Key.spin VGA_1024.spin VGA_HiRes_Text.spin \
+    EEPROM.spin
 
 # .wav included in object
 WAVS=piano.wav

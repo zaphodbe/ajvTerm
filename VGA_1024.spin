@@ -46,6 +46,9 @@ PUB start(BasePin) | i, char
     '' No inverse
     inverse := 0
 
+PUB stop
+    vga.stop
+
 '' Set color information for display
 PUB setColor(val)
     wordfill(@colors, val, rows)

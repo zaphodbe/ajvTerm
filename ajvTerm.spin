@@ -56,6 +56,10 @@ VAR
     ' Saved screen contents during config menu
     byte cfgScr[cfgCols*cfgRows]
 
+    word idlesecs	' # seconds idle
+    long lastsec	' CNT at time of last idlesecs tick
+    byte idleoff	' Screen is turned off due to idle timeout
+
 
 PUB main
 
@@ -67,6 +71,16 @@ PUB main
 	' Dispatch main keyboard and serial streams
 	doKey
 	doSerial0
+
+	' Run a one-second interval timer
+	if not idleoff
+	    if (cnt - lastsec) > clkfreq
+		idlesecs += 1
+		lastsec := cnt
+		if idlesecs > savemins*60
+		    idleoff := 1
+		    text.stop
+
 
 '' Apply the currently recorded config
 PRI setConfig
@@ -425,6 +439,14 @@ PRI doKey | key, ctl
     key := kb.key
     if key == 0
 	return
+
+    ' Handle idle timeouts
+    idlesecs := 0
+    if idleoff
+	idleoff := 0
+	text.start(video)
+	text.setColor(colorBits[color])
+	text.setCursor(cursor)
 
     ' See if it's a request for config mode
     '  (ESC with the control key down)

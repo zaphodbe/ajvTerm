@@ -63,5 +63,5 @@ PUB writeCfg(params) | loc, x
     i2c.WriteLong(i2cSCL, EEPROMAddr, loc, CfgMagic)
     repeat x from 0 to CfgSize-1
 	loc += 4
-	i2c.WriteLong(i2cSCL, EEPROMAddr, loc, params[x])
+	i2c.WriteLong(i2cSCL, EEPROMAddr, loc, cfg[x])
     waitcnt(clkfreq/200 + cnt)

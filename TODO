@@ -1,3 +1,5 @@
 Last char in line special processing
 Scroll regions
 Timeout screen blanking
+Protect against NVRAM write when nothing's changed
+Move the cursor to the cursor config line

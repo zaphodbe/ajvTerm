@@ -130,6 +130,8 @@ PRI doSerial0 | c, oldpos
 
 	' Process char
 	singleSerial0(c)
+	if (c == 13) AND autolf
+	    singleSerial0(10)
 
 '' Set invert video based on control code
 PRI setInv(c)

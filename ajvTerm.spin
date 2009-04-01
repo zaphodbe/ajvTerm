@@ -148,7 +148,7 @@ PRI ansi(c) | x, defVal
 
     ' Map args to appropriate default
     ' Most get a default argument of 1, a few 0.
-    if (c <> "r") AND (c <> "M") AND (c <> "J") AND (c <> "m")
+    if (c <> "r") AND (c <> "J") AND (c <> "m")
 	if a0 == -1
 	    a0 := 1
 	if a1 == -1
@@ -237,8 +237,6 @@ PRI ansi(c) | x, defVal
 	    text.insLine(pos)
 
      "M":	' Delete line(s)
-	if a0 == -1
-	    a0 := 0
 	repeat while a0-- > 0
 	    text.delLine(pos)
 

@@ -60,6 +60,8 @@ VAR
     long lastsec	' CNT at time of last idlesecs tick
     byte idleoff	' Screen is turned off due to idle timeout
 
+    byte cfgChange	' Flag that config is changed from EEPROM
+
 
 PUB main
 
@@ -422,6 +424,9 @@ PRI init
 	cfg[4] := autolf := 0
 	cfg[5] := caps := 0
 	cfg[6] := savemins := 2
+	cfgChange := 1
+    else
+	cfgChange := 0
 
     ' Start VGA output driver
     text.start(video)
@@ -578,10 +583,14 @@ PRI cfgKey : doneflag | c
     case c
 
      -1:	' Enter - save to EEPROM
-	eeprom.writeCfg(@cfg)
+	if cfgChange
+	    eeprom.writeCfg(@cfg)
+	    cfgChange := 0
+	return
 
      -2:	' ESC - end of config mode
 	doneflag := 1
+	return
 
      1:		' F1 - cycle baud rates
 	baud += 1
@@ -626,11 +635,14 @@ PRI cfgKey : doneflag | c
 	text.setCursor(cursor)
 	cfg[3] := cursor
 
+    ' Common case for all config changes
+    cfgChange := 1
+
 
 '' Interact with the user to set the terminal configuration
 PRI config | ignore, oldpos
     oldpos := pos
-    text.setCursorPos(0)
+    text.setCursorPos(8*text#cols + 16)
     text.saveBox(@cfgScr, 0, 0, cfgRows, cfgCols)
     repeat
 	cfgPaint

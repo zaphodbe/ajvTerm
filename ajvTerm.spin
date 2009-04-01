@@ -157,8 +157,7 @@ PRI ansi(c) | x, defVal
     case c
 
      "@":	' Insert char(s)
-	onlast := 0
-	repeat while a0--
+	repeat while a0-- > 0
 	    text.insChar(pos)
 
      "d":	' Vertical position absolute
@@ -205,9 +204,9 @@ PRI ansi(c) | x, defVal
 	pos := (pos - (pos // text#cols)) + (a0-1)
 
      "H":	' Set cursor position
-	if a0 == -1
+	if a0 =< 0
 	    a0 := 1
-	if a1 == -1
+	if a1 =< 0
 	    a1 := 1
 	pos := (text#cols * (a0-1)) + (a1 - 1)
 	if pos < 0
@@ -216,17 +215,27 @@ PRI ansi(c) | x, defVal
 	    pos := text#chars-1
 
      "J":	' Clear screen/EOS
-	if a0 <> 1
-	    ' Any arg but 1, clear whole screen
-	    text.cls
-	else
-	    ' Otherwise clear from current position to end of screen
-	    text.clEOL(pos)
-	    x := pos + text#cols
-	    x -= (x // text#cols)
-	    repeat while x < text#chars
+	' Erase to top of screen
+	if a0 == 1
+	    text.clBOL(pos)
+	    x := pos - text#cols
+	    x -= x // text#cols
+	    repeat while x => 0
 		text.clEOL(x)
-		x += text#cols
+		x -= text#cols
+	    return
+
+	' Erase whole screen and home cursor
+	if a0 == 2
+	    pos := 0
+
+	' Clear from current position to end of screen
+	text.clEOL(pos)
+	x := pos + text#cols
+	x -= (x // text#cols)
+	repeat while x < text#chars
+	    text.clEOL(x)
+	    x += text#cols
 
      "K":	' Clear to end of line
 	' TBD, "onlast" treatment

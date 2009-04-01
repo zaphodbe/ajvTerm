@@ -85,6 +85,11 @@ PUB clEOL(pos) | count
     count := cols - (pos // cols)
     bytefill(@screen + pos, $20, count)
 
+'' Clear to beginning of line
+PUB clBOL(pos) | count
+    count := pos // cols
+    bytefill(@screen + pos - count, $20, count)
+
 '' Delete line at position
 PUB delLine(pos) | src, count
     ' Move back to start of line
@@ -130,9 +135,9 @@ PUB insLine(pos) | base, nxt
 PUB insChar(pos) | count
     ' Due to ripple effect, we buffer to tmpl[], then move back
     count := (cols - (pos // cols)) - 1
-    bytemove(tmpl, @screen + pos, count)
+    bytemove(@tmpl, @screen + pos, count)
     screen[pos] := " "
-    bytemove(@screen + pos + 1, tmpl, count)
+    bytemove(@screen + pos + 1, @tmpl, count)
 
 '' Delete char at given position
 PUB delChar(pos) | count

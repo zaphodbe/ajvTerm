@@ -266,8 +266,13 @@ PRI singleSerial0(c)
 
     ' State 0: ready for new data to display or start of escape sequence
      0:
+	' Assume high bit chars are alternate character set
+	'  output, and make them consume a space
+	if c > 127
+	    c := $20
+
 	' Printing chars; put on screen
-	if (c => 32) AND (c < 128)
+	if c => 32
 	    text.putc(pos++, c)
 	    if pos => text#chars
 		pos := text#lastline

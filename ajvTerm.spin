@@ -150,7 +150,7 @@ PRI ansi(c) | x, defVal
 
     ' Map args to appropriate default
     ' Most get a default argument of 1, a few 0.
-    if (c <> "r") AND (c <> "J") AND (c <> "m")
+    if (c <> "r") AND (c <> "J") AND (c <> "m") AND (c <> "K")
 	if a0 == -1
 	    a0 := 1
 	if a1 == -1
@@ -239,9 +239,14 @@ PRI ansi(c) | x, defVal
 	    text.clEOL(x)
 	    x += text#cols
 
-     "K":	' Clear to end of line
-	' TBD, "onlast" treatment
-	text.clEOL(pos)
+     "K":	' Clear parts of line
+	if a0 == -1		' No arg, to end of line
+	    text.clEOL(pos)
+	elseif a0 == 1		' 1 == from beginning to position
+	    text.clBOL(pos)
+	else			' 2 == clear whole line
+	    text.clEOL(pos - (pos // text#cols))
+
 
      "L":	' Insert line(s)
 	repeat while a0-- > 0

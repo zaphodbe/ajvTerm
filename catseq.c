@@ -14,7 +14,8 @@ main(int argc, char **argv)
     struct termios told, tnew;
     FILE *fp;
     char c;
-    int x, nesc = 0, done = 0;
+    int x, nchar = 0, done = 0, step, bychars = 0;
+    unsigned int pos = 0;
 
     /* Access file to display */
     if (argc != 2) {
@@ -42,33 +43,58 @@ main(int argc, char **argv)
 	    done = 1;
 	    break;
 	}
+	pos += 1;
 	c = x;
 
-	/* Everything except escape sequences goes straight through */
-	putchar(c);
-	if (c != 27) {
+	/*
+	 * Things flow through until we hit an escape sequence,
+	 *  or we're in char-at-a-time mode.
+	 */
+	write(1, &c, 1);
+	if (!bychars && (c != 27)) {
 	    continue;
 	}
 
-	/* Copy until the end of this escape sequence */
+	/* Copy until the end of this sequence */
 	for (;;) {
 	    x = fgetc(fp);
 	    if (x == EOF) {
 		done = 1;
 		break;
 	    }
+	    pos += 1;
 	    c = x;
-	    putchar(c);
-	    if ((c != ';') && !isdigit(c)) {
-		if (nesc) {
-		    nesc -= 1;
+	    write(1, &c, 1);
+
+	    /*
+	     * We interact with the keyboard on each char if we're
+	     *  in "by chars" mode, otherwise at the end of the
+	     *  current escape sequence.
+	     */
+	    if (bychars) {
+		step = 1;
+	    } else  {
+		step = (c != ';') && !isdigit(c) && (c != '[');
+	    }
+
+	    /* Time step interact with the keyboard? */
+	    if (step) {
+		if (nchar) {
+		    nchar -= 1;
 		} else {
 		    (void)read(0, &c, 1);
+
+		    /* Bail out? */
 		    if (c == 'q') {
 			done = 1;
-		    }
-		    if (isdigit(c)) {
-			nesc = c - '0';
+
+		    /* Toggle "by char" mode? */
+		    } else if (c == 'c') {
+			bychars = !bychars;
+
+		    /* Get a count of steps */
+		    } else if (isdigit(c)) {
+			nchar = c - '0';
 		    }
 		}
 		break;
@@ -76,6 +102,6 @@ main(int argc, char **argv)
 	}
     } while (!done);
     tcsetattr(1, TCSANOW, &told);
-    putchar('\n');
+    fprintf(stderr, "\nFinished at position %u\n", pos);
     return(0);
 }

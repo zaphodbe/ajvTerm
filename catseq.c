@@ -1,6 +1,24 @@
 /*
  * catseq.c
  *	Output escape sequences a few at a time
+ *
+ * Usage is: catseq <trace-file> [ <log-file> ]
+ *
+ * Each time you hit a key, the output is emitted through the next
+ *  escape sequence.  If <log-file> is specified, the output is also
+ *  put into this file (this lets you step out to a problematic
+ *  sequence, and then have a trace file just to that point).
+ * If you type the digits 1-9, it actually outputs that many sequences
+ *  before stopping (so you can "jump" forward up to 9 at a time).
+ * If you type "c", it toggles character mode--in character mode, the
+ *  characters from the trace come out one at at time.  So in
+ *  character mode, "9" would get you 9 characters.
+ * Typing "q" ends catseq.
+ *
+ * So the idea is to work your way forward with "9" until you're right
+ *  near to the problem.  Then "c" and spaces until you just see the
+ *  incorrect event.  Then "q", and now you can examine the trace
+ *  file if needed to see exactly what sequence is involved.
  */
 #include <stdlib.h>
 #include <termios.h>

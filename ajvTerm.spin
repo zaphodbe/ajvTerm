@@ -61,6 +61,7 @@ VAR
     byte idleoff	' Screen is turned off due to idle timeout
 
     byte cfgChange	' Flag that config is changed from EEPROM
+    byte regTop, regBot	' Scroll region top/bottom
 
 
 PUB main
@@ -171,6 +172,22 @@ PRI ansi(c) | x, defVal
 	setInv(a0)
 	if a1 <> -1
 	    setInv(a1)
+
+     "r":	' Set scroll region
+	' TBD is to change all the scroll code to check the region
+
+	' Default param is screen bounds
+	if a0 == -1
+	    a0 := 1
+	if a1 == -1
+	    a1 := text#cols
+
+	' Set region
+	regTop := a0
+	regBot := a1
+
+	' This op seems to implicitly home the cursor...
+	pos := 0
 
      "A":	' Move cursor up line(s)
 	repeat while a0-- > 0
@@ -456,6 +473,8 @@ PRI init
     state := 0
     onlast := 0
     pos := 0
+    regTop := 1
+    regBot := text#cols
 
 '' Read and dispatch a keystroke
 PRI doKey | key, ctl

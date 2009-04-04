@@ -144,6 +144,23 @@ PRI setInv(c)
     else
 	text.setInv(0)
 
+'' Tell if current position is within scroll region
+PRI inReg : answer
+    answer := (pos => regTop) AND (pos < regBot)
+
+'' Scroll the contents of the scroll region upward
+''  (i.e., add a new blank line at the bottom of the region)
+PRI scrollUp
+    text.delLine(regTop)
+    if regBot < text#chars
+	text.insLine(regBot)
+
+'' Scroll downward (new blank line at top)
+PRI scrollDown
+    if regBot < text#chars
+	text.delLine(regBot)
+    text.insLine(regTop)
+
 '' Take action for ANSI-style sequence
 PRI ansi(c) | x, defVal
 
@@ -186,11 +203,13 @@ PRI ansi(c) | x, defVal
 	    a1 := 1
 	elseif a1 > text#cols
 	    a1 := text#cols
+	if a1 < a0
+	    a1 := a0
 
-	' Set region; regTop is first location in scroll region;
+	' Set region; regTop is first location in the scroll region;
 	'  regBot is first location beyond end of scroll region.
-	regTop := (a0-1)*text#cols
-	regBot := a1*text#cols
+	regTop := (a0-1) * text#cols
+	regBot := a1 * text#cols
 
 	' This op seems to implicitly home the cursor...
 	pos := 0
@@ -272,12 +291,16 @@ PRI ansi(c) | x, defVal
 
 
      "L":	' Insert line(s)
-	repeat while a0-- > 0
-	    text.insLine(pos)
+	if inReg
+	    repeat while a0-- > 0
+		text.delLine(regBot)
+		text.insLine(pos)
 
      "M":	' Delete line(s)
-	repeat while a0-- > 0
-	    text.delLine(pos)
+	if inReg
+	    repeat while a0-- > 0
+		text.delLine(pos)
+		text.insLine(regBot)
 
      "P":	' Delete char(s)
 	repeat while a0--
@@ -297,9 +320,17 @@ PRI singleSerial0(c)
 	' Printing chars; put on screen
 	if c => 32
 	    text.putc(pos++, c)
-	    if pos => text#chars
+
+	    ' If just advanced beyond end of scroll region, scroll
+	    if pos == regBot
+		scrollUp
+		pos -= text#cols
+
+	    ' If beyond scroll region & walk off screen, wrap
+	    '  back around to column 0
+	    elseif pos == text#chars
 		pos := text#lastline
-		text.delLine(0)
+
 	    return
 
 	' Escape sequence started
@@ -314,10 +345,15 @@ PRI singleSerial0(c)
 
 	' LF
 	if c == 10
-	    pos += text#cols
-	    if pos => text#chars
-		pos -= text#cols
-		text.delLine(0)
+	    if inReg
+		pos += text#cols
+		if pos => regBot
+		    scrollUp
+		    pos -= text#cols
+	    else
+		pos += text#cols
+		if pos => text#chars
+		    pos -= text#cols
 	    return
 
 	' Tab
@@ -339,53 +375,51 @@ PRI singleSerial0(c)
 
     ' State 1: ESC received, ready for escape sequence
      1:
-	' ESC-[, start of extended ANSI style arguments
-	if c == "["
+	case c
+
+	 ' ESC-[, start of extended ANSI style arguments
+	 "[":
 	    a0 := a1 := -1
 	    state := 2
 	    return
 
-	' ESC-P, cursor down one line
-	if c == "P"
+	 ' ESC-P, cursor down one line
+	 "P":
 	    pos += text#cols
 	    if pos => text#chars
 		pos -= text#cols
-	    return
 
-	' ESC-K, cursor left one position
-	if c == "K"
+	 ' ESC-K, cursor left one position
+	 "K":
 	    if pos > 0
 		pos -= 1
-	    return
 
-	' ESC-H, cursor up one line
-	if c == "H"
+	 ' ESC-H, cursor up one line
+	 "H":
 	    pos -= text#cols
 	    if pos < 0
 		pos += text#cols
-	    return
 
-	' ESC-D, scroll one line
-	if c == "D"
-	    text.delLine(0)
-	    return
+	 ' ESC-D, scroll one line
+	 "D":
+	    if inReg
+		scrollUp
 
-	' ESC-M, scroll backward
-	if c == "M"
-	    text.insLine(0)
-	    return
+	 ' ESC-M, scroll backward
+	 "M":
+	    if inReg
+		scrollDown
 
-	' ESC-G, cursor home
-	if c == "G"
+	 ' ESC-G, cursor home
+	 "G":
 	    pos := 0
-	    return
 
-	' ESC-(, char set selection (decoded and ignored)
-	if c == "("
+	 ' ESC-(, char set selection (decoded and ignored)
+	 "(":
 	    state := 5
 	    return
 
-	' Unknown sequence, ignore and reset state machine
+	' Escape sequence done, reset state machine
 	state := 0
 	return
 

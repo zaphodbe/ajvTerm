@@ -64,6 +64,8 @@ VAR
 
     word regTop, regBot	' Scroll region top/bottom
 
+    byte lastc		' Last displayed char
+
 
 PUB main
 
@@ -180,6 +182,10 @@ PRI ansi(c) | x, defVal
      "@":	' Insert char(s)
 	repeat while a0-- > 0
 	    text.insChar(pos)
+
+     "b":	' Repeat last char
+	repeat while a0-- > 0
+	    simplec(lastc)
 
      "d":	' Vertical position absolute
 	if (a0 < 1) OR (a0 > text#rows)
@@ -306,6 +312,20 @@ PRI ansi(c) | x, defVal
 	repeat while a0--
 	    text.delChar(pos)
 
+'' Put a single printing char onto the screen
+PRI simplec(c)
+    text.putc(pos++, lastc := c)
+
+    ' If just advanced beyond end of scroll region, scroll
+    if pos == regBot
+	scrollUp
+	pos -= text#cols
+
+    ' If beyond scroll region & walk off screen, wrap
+    '  back around to column 0
+    elseif pos == text#chars
+	pos := text#lastline
+
 '' Process next byte from our host port
 PRI singleSerial0(c)
     case state
@@ -319,18 +339,7 @@ PRI singleSerial0(c)
 
 	' Printing chars; put on screen
 	if c => 32
-	    text.putc(pos++, c)
-
-	    ' If just advanced beyond end of scroll region, scroll
-	    if pos == regBot
-		scrollUp
-		pos -= text#cols
-
-	    ' If beyond scroll region & walk off screen, wrap
-	    '  back around to column 0
-	    elseif pos == text#chars
-		pos := text#lastline
-
+	    simplec(c)
 	    return
 
 	' Escape sequence started

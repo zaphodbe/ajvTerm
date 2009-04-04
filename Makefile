@@ -30,4 +30,5 @@ SRC=ajvTerm-src-$(REL)
 BIN=ajvTerm-$(REL)
 release: term.binary
 	mkdir $(STAGE)/$(SRC) ; cp * $(STAGE)/$(SRC)/
+	cd $(STAGE) ; tar -zcf $(SRC).tar.gz $(SRC)
 	cp term.binary $(STAGE)/$(BIN)

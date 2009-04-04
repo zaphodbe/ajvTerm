@@ -299,18 +299,29 @@ PRI ansi(c) | x, defVal
      "L":	' Insert line(s)
 	if inReg
 	    repeat while a0-- > 0
-		text.delLine(regBot)
+		if regBot < text#chars
+		    text.delLine(regBot)
 		text.insLine(pos)
 
      "M":	' Delete line(s)
 	if inReg
 	    repeat while a0-- > 0
 		text.delLine(pos)
-		text.insLine(regBot)
+		if regBot < text#chars
+		    text.insLine(regBot)
 
      "P":	' Delete char(s)
 	repeat while a0--
 	    text.delChar(pos)
+
+'' Alternate ANSI escape sequence: Esc-[?<num><letter>
+PRI ansi2(c)
+    state := 0
+    case c
+     "h":
+	if a0 < 1
+	    a0 := 0
+	kb.setKeys(a0)
 
 '' Put a single printing char onto the screen
 PRI simplec(c)
@@ -430,7 +441,6 @@ PRI singleSerial0(c)
 
 	' Escape sequence done, reset state machine
 	state := 0
-	return
 
     ' State 2: ESC-[, start decoding first numeric arg
      2:
@@ -447,9 +457,13 @@ PRI singleSerial0(c)
 	    state := 3
 	    return
 
+	' "?", variant ANSI sequence
+	if c == "?"
+	    state := 6
+	    return
+
 	' End of input sequence
 	ansi(c)
-	return
 
     ' State 3: ESC-[<digits>;, start decoding second numeric arg
      3:
@@ -468,7 +482,6 @@ PRI singleSerial0(c)
 
 	' End of sequence
 	ansi(c)
-	return
 
     ' State 4: ESC-[<digits>;<digits>;...  Ignore subsequent args
      4:
@@ -477,13 +490,21 @@ PRI singleSerial0(c)
 	if c == ";"
 	    return
 	ansi(c)
-	return
 
     ' State 5: ESC-(, ignore character set selection
      5:
 	state := 0
-	return
-    return
+
+    ' State 6: Esc-[?<num><letter>
+     6:
+	' Digits, assemble value
+	if (c => "0") AND (c =< "9")
+	    if a0 == -1
+		a0 := c - "0"
+	    else
+		a0 := (a0*10) + (c - "0")
+	    return
+	ansi2(c)
 
 '' One-time initialization of terminal driver state
 PRI init

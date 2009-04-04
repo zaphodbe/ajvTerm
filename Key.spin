@@ -27,6 +27,7 @@ VAR
     byte isE0, isF0	'  Extended key sequence prefixes received
     byte capsOpt	' Handling of caps lock key:
     			'  0 = normal, 1 = another ctl, 2 = swap w. ctl
+    byte altKeys	' Alternate key sequence selected
 
 '' Start keyboard driver - starts a cog
 '' returns false if no cog available
@@ -42,7 +43,9 @@ PUB start(dp, cp) : okay
     cpin := cp
     okay := cog1 := cognew(@entry, @dpin)+1
     nkey := keyhd := keytl := tail := 0
-    shiftL := shiftR := ctl := capsLock := numLock := alt := isE0 := 0
+    shiftL := shiftR := ctl := capsLock := capsOpt := 0
+    numLock := alt := isE0 := isF0 := 0
+    altKeys := 1
 
 '' Stop keyboard driver - frees a cog
 PUB stop
@@ -52,6 +55,10 @@ PUB stop
 '' Set treatment of caps lock key
 PUB setCaps(arg)
     capsOpt := arg
+
+'' Set sequence sent by arrow keys
+PUB setKeys(arg)
+    altKeys := arg
 
 '' Add a char to the FIFO
 PRI enq(c)
@@ -138,13 +145,25 @@ PRI cursor_key(c) : processed | s
     processed := 1
     case c
      $75:	' Up
-	s := string("OA")
+	if altKeys
+	    s := string("[A")
+	else
+	    s := string("OA")
      $72:	' Down
-	s := string("OB")
+	if altKeys
+	    s := string("[B")
+	else
+	    s := string("OB")
      $74:	' Right
-	s := string("OC")
+	if altKeys
+	    s := string("[C")
+	else
+	    s := string("OC")
      $6B:	' Left
-	s := string("OD")
+	if altKeys
+	    s := string("[D")
+	else
+	    s := string("OD")
      $7D:	' Page Up
 	s := string("[5~")
      $7A:	' Page Down

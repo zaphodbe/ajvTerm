@@ -3,4 +3,4 @@ New user notes
 Keyboard LEDs
 2nd serial port?
 Flow control?
-Make config "changed" when no EEPROM config on start
+Keypad support

@@ -20,7 +20,14 @@ catseq: catseq.o
 	$(CC) $(CFLAGS) -o catseq catseq.o
 
 clean:
-	rm -f *.binary *.o
+	rm -f *.o catseq
 
 clobber: clean
-	rm -f catseq term.binary
+	rm -f term.binary
+
+STAGE=/tmp
+SRC=ajvTerm-src-$(REL)
+BIN=ajvTerm-$(REL)
+release: term.binary
+	mkdir $(STAGE)/$(SRC) ; cp * $(STAGE)/$(SRC)/
+	cp term.binary $(STAGE)/$(BIN)

@@ -55,7 +55,7 @@ PUB setColor(val)
 
 '' Set value of "inverse char" flag
 PUB setInv(c)
-    inverse := c	
+    inverse := c
 
 '' Set type of cursor
 PUB setCursor(c) | i
@@ -73,7 +73,7 @@ PUB setCursor(c) | i
     elseif c == 6
 	i:= %111
     elseif c == 7
-	i:= %000  
+	i:= %000
     cursor[2] := i
 
 '' Clear screen

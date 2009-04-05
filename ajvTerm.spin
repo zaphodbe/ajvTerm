@@ -43,8 +43,6 @@ VAR
     byte force7	'  force7 - Flag force to 7 bits
     byte autolf	'  autolf - Generate LF after CR
     byte state	' Main terminal emulation state
-    long a0	'  Arg 0 to an escape sequence
-    long a1	'   ...arg 1
     byte onlast	' Flag that we've just put a char on last column
     word pos	' Current output/cursor position
     byte caps	' Options for treatment of CAPS lock
@@ -52,6 +50,10 @@ VAR
     byte color	' Text color (index)
     byte baud	' Baud rate (index)
     byte cursor	' Cursor style
+
+    ' Args to escape sequence
+    long argp, a0, a1, a2
+    byte narg
 
     ' Saved screen contents during config menu
     byte cfgScr[cfgCols*cfgRows]
@@ -139,12 +141,14 @@ PRI doSerial0 | c, oldpos
 	if (c == 13) AND autolf
 	    singleSerial0(10)
 
-'' Set invert video based on control code
+'' Implement attr
 PRI setInv(c)
-    if c == 1
-	text.setInv(1)
-    else
+    if c == -1
+	return
+    if (c < 2) OR (c == 10)
 	text.setInv(0)
+    else
+	text.setInv(1)
 
 '' Tell if current position is within scroll region
 PRI inReg : answer
@@ -193,9 +197,11 @@ PRI ansi(c) | x, defVal
 	pos := ((a0-1) * text#cols) + (pos // text#cols)
 
      "m":	' Set character enhancements
+	if a0 == -1
+	    a0 := 0
 	setInv(a0)
-	if a1 <> -1
-	    setInv(a1)
+	setInv(a1)
+	setInv(a2)
 
      "r":	' Set scroll region
 	' TBD is to change all the scroll code to check the region
@@ -314,6 +320,11 @@ PRI ansi(c) | x, defVal
 	repeat while a0--
 	    text.delChar(pos)
 
+     "S":	' Scroll upward
+	if (pos => regTop) AND (pos < regBot)
+	    repeat while a0--
+		scrollUp
+
 '' Alternate ANSI escape sequence: Esc-[?<num><letter>
 PRI ansi2(c)
     state := 0
@@ -338,7 +349,7 @@ PRI simplec(c)
 	pos := text#lastline
 
 '' Process next byte from our host port
-PRI singleSerial0(c)
+PRI singleSerial0(c) | x
     case state
 
     ' State 0: ready for new data to display or start of escape sequence
@@ -399,7 +410,8 @@ PRI singleSerial0(c)
 
 	 ' ESC-[, start of extended ANSI style arguments
 	 "[":
-	    a0 := a1 := -1
+	    narg := 1
+	    longfill(@a0, -1, 3)
 	    state := 2
 	    return
 
@@ -454,6 +466,8 @@ PRI singleSerial0(c)
 
 	' Semicolon, advance to arg1
 	if c == ";"
+	    argp := @a1
+	    narg := 2
 	    state := 3
 	    return
 
@@ -465,31 +479,29 @@ PRI singleSerial0(c)
 	' End of input sequence
 	ansi(c)
 
-    ' State 3: ESC-[<digits>;, start decoding second numeric arg
+    ' State 3: ESC-[<digits>;, start decoding subsequent numeric args
      3:
 	' Digits, assemble value
 	if (c => "0") AND (c =< "9")
-	    if a1 == -1
-		a1 := c - "0"
-	    else
-		a1 := (a1*10) + (c - "0")
+	    if narg < 4
+		x := LONG[argp]
+		if x == -1
+		    x := c - "0"
+		else
+		    x := (x*10) + (c - "0")
+		LONG[argp] := x
 	    return
 
-	' Semicolon, ignore subsequent args
+	' Semicolon, next arg
 	if c == ";"
-	    state := 4
+	    narg += 1
+	    argp += 4
 	    return
 
 	' End of sequence
 	ansi(c)
 
-    ' State 4: ESC-[<digits>;<digits>;...  Ignore subsequent args
-     4:
-	if (c => "0") AND (c =< "9")
-	    return
-	if c == ";"
-	    return
-	ansi(c)
+    ' State 4: unused
 
     ' State 5: ESC-(, ignore character set selection
      5:

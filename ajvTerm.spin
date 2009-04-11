@@ -145,7 +145,7 @@ PRI doSerial0 | c, oldpos
 PRI setInv(c)
     if c == -1
 	return
-    if (c < 2) OR (c == 10)
+    if (c < 2) OR (c => 10)
 	text.setInv(0)
     else
 	text.setInv(1)
@@ -376,13 +376,12 @@ PRI singleSerial0(c) | x
 
 	' LF
 	if c == 10
+	    pos += text#cols
 	    if inReg
-		pos += text#cols
 		if pos => regBot
 		    scrollUp
 		    pos -= text#cols
 	    else
-		pos += text#cols
 		if pos => text#chars
 		    pos -= text#cols
 	    return

@@ -1,5 +1,6 @@
-Last char in line special processing
 Keyboard LEDs
 2nd serial port?
 Flow control?
 Keypad support
+Have shift-down send some sort of pseudo-key when the screen saver
+ is on, so a non-data key can wake the terminal back up.

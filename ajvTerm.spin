@@ -184,6 +184,7 @@ PRI ansi(c) | x, defVal
     case c
 
      "@":	' Insert char(s)
+	onlast := 0
 	repeat while a0-- > 0
 	    text.insChar(pos)
 
@@ -249,10 +250,13 @@ PRI ansi(c) | x, defVal
 
      "D":	' Move cursor left
 	repeat while a0-- > 0
-	    pos -= 1
-	    if pos < 0
-		pos := 0
-		return
+	    if onlast
+		onlast := 0
+	    else
+		pos -= 1
+		if pos < 0
+		    pos := 0
+			return
 
      "G":	' Horizontal position absolute
 	if (a0 < 1) OR (a0 > text#cols)
@@ -260,6 +264,7 @@ PRI ansi(c) | x, defVal
 	pos := (pos - (pos // text#cols)) + (a0-1)
 
      "H":	' Set cursor position
+	onlast := 0
 	if a0 =< 0
 	    a0 := 1
 	if a1 =< 0
@@ -294,6 +299,16 @@ PRI ansi(c) | x, defVal
 	    x += text#cols
 
      "K":	' Clear parts of line
+	' If we're beyond the end of the line, advance to the next
+	'  line if there *is* one.  This lets the clearing apply to
+	'  the line we're kinda sorta "on".
+	if onlast
+	    pos += 1
+	    if pos < text#chars
+		onlast := 0
+	    else
+		pos -= 1
+
 	if a0 == -1		' No arg, to end of line
 	    text.clEOL(pos)
 	elseif a0 == 1		' 1 == from beginning to position
@@ -336,17 +351,23 @@ PRI ansi2(c)
 
 '' Put a single printing char onto the screen
 PRI simplec(c)
+
+    ' If we put to last position on line last time,
+    ' advance position for new output.
+    if onlast
+	pos += 1
+	if pos == regBot
+	    scrollUp
+	    pos -= text#cols
+	onlast := 0
+
+    ' Put the actual text
     text.putc(pos++, lastc := c)
 
-    ' If just advanced beyond end of scroll region, scroll
-    if pos == regBot
-	scrollUp
-	pos -= text#cols
-
-    ' If beyond scroll region & walk off screen, wrap
-    '  back around to column 0
-    elseif pos == text#chars
-	pos := text#lastline
+    ' Delay motion at end of line until next output char
+    if (pos // text#cols) == 0
+	pos -= 1
+	onlast := 1
 
 '' Process next byte from our host port
 PRI singleSerial0(c) | x
@@ -372,16 +393,18 @@ PRI singleSerial0(c) | x
 	' CR
 	if c == 13
 	    pos := pos - (pos // text#cols)
+	    onlast := 0
 	    return
 
 	' LF
 	if c == 10
-	    pos += text#cols
 	    if inReg
+		pos += text#cols
 		if pos => regBot
 		    scrollUp
 		    pos -= text#cols
 	    else
+		pos += text#cols
 		if pos => text#chars
 		    pos -= text#cols
 	    return
@@ -389,6 +412,7 @@ PRI singleSerial0(c) | x
 	' Tab
 	if c == 9
 	    ' Advance to next tab stop
+	    onlast := 0
 	    pos += (8 - (pos // 8))
 
 	    ' Scroll when tab to new line
@@ -400,7 +424,10 @@ PRI singleSerial0(c) | x
 	' Backspace
 	if c == 8
 	    if pos > 0
-		pos -= 1
+		if onlast
+		    onlast := 0
+		else
+		    pos -= 1
 	    return
 
     ' State 1: ESC received, ready for escape sequence
@@ -443,7 +470,7 @@ PRI singleSerial0(c) | x
 
 	 ' ESC-G, cursor home
 	 "G":
-	    pos := 0
+	    onlast := pos := 0
 
 	 ' ESC-(, char set selection (decoded and ignored)
 	 "(":

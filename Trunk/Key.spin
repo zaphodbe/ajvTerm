@@ -28,6 +28,7 @@ VAR
     byte capsOpt	' Handling of caps lock key:
     			'  0 = normal, 1 = another ctl, 2 = swap w. ctl
     byte altKeys	' Alternate key sequence selected
+    byte anyKey		' Flag of *any* keyboard activity
 
 '' Start keyboard driver - starts a cog
 '' returns false if no cog available
@@ -67,6 +68,11 @@ PRI enq(c)
     keys[keyhd++] := c
     nkey += 1
     keyhd &= $F
+
+'' Return pointer to "any key" flag memory
+PUB getAnyKey : valPtr
+    valPtr := @anyKey
+
 
 '' Process an actual keyboard data character.
 ' Things like shift key changes don't reach here.
@@ -247,12 +253,16 @@ PRI procRX | c
     '  presented by the keyboard.  It knows that we have consumed a
     '  slot when we set the slot's position back to zero.
     repeat while (c := rawkey)
+	' Flag arrival of keystroke of any sort
+	anyKey := 1
+
 	' Note prefixes
 	if c == $E0
 	    isE0 := 1
 	elseif c == $F0
 	    isF0 := 1
 	else
+
 	    ' Process actual data byte
 	    procRX2(c)
 

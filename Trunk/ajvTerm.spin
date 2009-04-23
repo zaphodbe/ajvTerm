@@ -85,12 +85,17 @@ PUB main
 	' Run a one-second interval timer
 	'  for idle timing
 	if not idleoff
+	    ' Reset the timer on any keyboard activity
+	    if BYTE[anyKey]
+		idlesecs := 0
+		BYTE[anyKey] := 0
+
+	    ' Wait for one second intervals
 	    if (cnt - lastsec) > clkfreq
 		idlesecs += 1
 		lastsec := cnt
 		if idlesecs > savemins*60
 		    idleoff := 1
-		    BYTE[anyKey] := 0
 		    text.stop
 
 	' Watch for any keyboard activity to wake
@@ -603,9 +608,6 @@ PRI doKey | key, ctl
     key := kb.key
     if key == 0
 	return
-
-    ' Handle idle timeouts
-    idlesecs := 0
 
     ' See if it's a request for config mode
     '  (ESC with the control key down)

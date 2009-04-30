@@ -175,8 +175,7 @@ PRI inReg : answer
 ''  (i.e., add a new blank line at the bottom of the region)
 PRI scrollUp
     text.delLine(regTop)
-    if regBot < text#chars
-	text.insLine(regBot)
+    text.insLine(regBot - text#cols)
 
 '' Scroll downward (new blank line at top)
 PRI scrollDown
@@ -227,12 +226,12 @@ PRI ansi(c) | x, defVal
 	' Bound param to screen geometry
 	if a0 < 1
 	    a0 := 1
-	elseif a0 > text#cols
-	    a0 := text#cols
+	elseif a0 > text#rows
+	    a0 := text#rows
 	if a1 < 1
 	    a1 := 1
-	elseif a1 > text#cols
-	    a1 := text#cols
+	elseif a1 > text#rows
+	    a1 := text#rows
 	if a1 < a0
 	    a1 := a0
 

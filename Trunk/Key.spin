@@ -101,7 +101,7 @@ PRI procRX3(ch) | sh, c
 	return
 
     ' Map control chars
-    if ctl
+    if ctl AND (c <> $20)
 	c &= $1F
 
     ' Put in FIFO

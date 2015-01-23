@@ -18,7 +18,7 @@ CON
 
 
 OBJ
-  i2c:	"basic_i2c_driver"	' I2C serial bus
+  i2c:	"Basic_I2C_Driver"	' I2C serial bus
 
 
 VAR
